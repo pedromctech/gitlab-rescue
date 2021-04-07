@@ -68,6 +68,36 @@ OPTIONS:
             Name of GitLab CI/CD variable
 ```
 
+## gitlab-rescue list
+
+```text
+$ gitlab-rescue list --help
+
+gitlab-rescue-list 0.1.0
+Pedro Miranda <pedrodotmc@gmail.com>
+List all variables in JSON format
+
+USAGE:
+    gitlab-rescue list [OPTIONS]
+
+FLAGS:
+    -h, --help
+            Prints help information
+
+    -V, --version
+            Prints version information
+
+    --from-all-if-missing
+            If variable is not found in defined environment (-e option), try with "All" environment.
+
+OPTIONS:
+    -e, --environment <ENVIRONMENT>
+            Name of GitLab CI/CD environment (Default: All)
+
+    -o, --output-file <FILE>
+            Export list to a file. If not set, list will be printed in STDOUT.
+```
+
 ## gitlab-rescue export
 
 ```text
@@ -129,4 +159,96 @@ OPTIONS:
 
         --folder <PATH>
             Path where variables with type "File" will be stored. Files will be created with format <VARIABLE_NAME>.var. Default: $PWD/.env.<ENVIRONMENT>.
+```
+
+## Usage
+
+Let's suppose that you have this variables in your GitLab CI/CD:
+
+- **Type:** Variable
+
+  **Environment:** All
+  
+  **Key:** MY_VARIABLE
+  
+  **Value:** hello-world
+
+- **Type:** File
+  
+  **Environment:** develop
+  
+  **Key:** MY_CREDENTIALS
+  
+  **Value:**
+```json
+{
+    "a_super_secret_info": "a_super_secret_value"
+}
+```
+
+```bash
+# Instead of using CLI flags, you can export GitLab instance variables
+$ export GITLAB_PROJECT=<GITLAB_PROJECT>
+$ export GITLAB_TOKEN=<GITLAB_TOKEN>
+$ export GITLAB_API_URL=<GITLAB_API_URL>
+
+# Get a variable
+$ gitlab-rescue get -n MY_VARIABLE
+hello-world
+
+# Get a file
+$ gitlab-rescue get -n MY_CREDENTIALS -e develop
+{
+    "a_super_secret_info": "a_super_secret_value"
+}
+
+# Export a variable
+$ gitlab-rescue export -n MY_VARIABLE
+$ echo $MY_VARIABLE
+hello-world
+
+# Export a file
+$ gitlab-rescue export -n MY_CREDENTIALS -e develop
+$ echo $MY_CREDENTIALS
+$PWD/MY_CREDENTIALS.var
+$ cat $MY_CREDENTIALS
+{
+    "a_super_secret_info": "a_super_secret_value"
+}
+
+# Export all
+$ gitlab-rescue export-all -e develop
+$ echo $MY_VARIABLE
+# This variable is not in "develop" scope, so it was not exported.
+$ echo $MY_CREDENTIALS
+$PWD/.env.develop/MY_CREDENTIALS.var
+$ cat $MY_CREDENTIALS
+{
+    "a_super_secret_info": "a_super_secret_value"
+}
+
+# Export all with fallback
+$ gitlab-rescue export-all -e develop --from-all-if-missing
+$ echo $MY_VARIABLE
+hello-world
+$ echo $MY_CREDENTIALS
+$PWD/.env.develop/MY_CREDENTIALS.var
+$ cat $MY_CREDENTIALS
+{
+    "a_super_secret_info": "a_super_secret_value"
+}
+
+# List variables
+$ gitlab-rescue list -e develop -o output.json --from-all-if-missing
+$ cat output.json
+{
+    "MY_VARIABLE": "",
+    "MY_CREDENTIALS": "{\\n\"a_super_secret_info\": \"a_super_secret_value\"\\n}"
+}
+# For example, you can get a JSON file using jq as follows:
+$ jq '.MY_CREDENTIALS | fromjson' output.json > MY_CREDENTIALS.var
+$ cat MY_CREDENTIALS.var
+{
+    "a_super_secret_info": "a_super_secret_value"
+}
 ```
