@@ -29,6 +29,7 @@ OPTIONS:
 SUBCOMMANDS:
     help        Prints this message or the help of the given subcommand(s)
     get         Print variable in STDOUT
+    list        List all variables in JSON format
     export      Export variable in current shell (if variable is File type, a file will be created and the path's file will be exported)
     export-all  Export all variables in current shell (file type variables will be stored in a folder)
 
@@ -93,9 +94,6 @@ FLAGS:
 OPTIONS:
     -e, --environment <ENVIRONMENT>
             Name of GitLab CI/CD environment (Default: All)
-
-    -o, --output-file <FILE>
-            Export list to a file. If not set, list will be printed in STDOUT.
 ```
 
 ## gitlab-rescue export
@@ -163,29 +161,6 @@ OPTIONS:
 
 ## Usage
 
-Let's suppose that you have this variables in your GitLab CI/CD:
-
-- **Type:** Variable
-
-  **Environment:** All
-  
-  **Key:** MY_VARIABLE
-  
-  **Value:** hello-world
-
-- **Type:** File
-  
-  **Environment:** develop
-  
-  **Key:** MY_CREDENTIALS
-  
-  **Value:**
-```json
-{
-    "a_super_secret_info": "a_super_secret_value"
-}
-```
-
 ```bash
 # Instead of using CLI flags, you can export GitLab instance variables
 $ export GITLAB_PROJECT=<GITLAB_PROJECT>
@@ -218,8 +193,7 @@ $ cat $MY_CREDENTIALS
 
 # Export all
 $ gitlab-rescue export-all -e develop
-$ echo $MY_VARIABLE
-# This variable is not in "develop" scope, so it was not exported.
+$ echo $MY_VARIABLE ## This variable is not in "develop" scope, so it was not exported.
 $ echo $MY_CREDENTIALS
 $PWD/.env.develop/MY_CREDENTIALS.var
 $ cat $MY_CREDENTIALS
@@ -239,15 +213,16 @@ $ cat $MY_CREDENTIALS
 }
 
 # List variables
-$ gitlab-rescue list -e develop -o output.json --from-all-if-missing
+$ gitlab-rescue list -e develop --from-all-if-missing >output.json
 $ cat output.json
 {
     "MY_VARIABLE": "",
     "MY_CREDENTIALS": "{\\n\"a_super_secret_info\": \"a_super_secret_value\"\\n}"
 }
+
 # For example, you can get a JSON file using jq as follows:
-$ jq '.MY_CREDENTIALS | fromjson' output.json > MY_CREDENTIALS.var
-$ cat MY_CREDENTIALS.var
+$ jq '.MY_CREDENTIALS | fromjson' output.json >my_credentials.json
+$ cat my_credentials.json
 {
     "a_super_secret_info": "a_super_secret_value"
 }
