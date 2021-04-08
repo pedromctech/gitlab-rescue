@@ -1,0 +1,10 @@
+[package]
+authors = ["Pedro Miranda <pedrodotmc@gmail.com>"]
+edition = "2018"
+name = "gitlab_rescue"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[dependencies]
+ansi_term = "0.12.1"
+clap = {version = "2.33.3", features = ["yaml"]}

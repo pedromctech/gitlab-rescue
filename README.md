@@ -17,13 +17,13 @@ FLAGS:
     -V, --version    Prints version information
 
 OPTIONS:
-    -p, --project <GITLAB_PROJECT>
+    -p, --project-id <GITLAB_PROJECT>
             GitLab project ID
 
-    -t, --token <GITLAB_TOKEN>
+    -t, --token <GITLAB_API_TOKEN>
             A valid GitLab API token
 
-    -u, --api-url <GITLAB_API_URL>
+    -u, --url <GITLAB_API_URL>
             URL of GitLab API. Default: https://gitlab.com/api/v4
 
 SUBCOMMANDS:
@@ -34,8 +34,8 @@ SUBCOMMANDS:
     export-all  Export all variables in current shell (file type variables will be stored in a folder)
 
 Instead, you can set request parameters via environment variables:
-export GITLAB_PROJECT=<GITLAB_PROJECT>
-export GITLAB_TOKEN=<GITLAB_TOKEN>
+export GITLAB_PROJECT_ID=<GITLAB_PROJECT_ID>
+export GITLAB_API_TOKEN=<GITLAB_API_TOKEN>
 export GITLAB_API_URL=<GITLAB_API_URL>
 ```
 
@@ -49,7 +49,7 @@ Pedro Miranda <pedrodotmc@gmail.com>
 Print variable in STDOUT
 
 USAGE:
-    gitlab-rescue get --name <NAME> [OPTIONS]
+    gitlab-rescue get --name <VARIABLE_NAME> [OPTIONS]
 
 FLAGS:
     -h, --help
@@ -59,7 +59,7 @@ FLAGS:
             Prints version information
 
     --from-all-if-missing
-            If variable is not found in defined environment (-e option), try with "All" environment.
+            If variable is not found in defined environment (-e option), try searching in "All" environment.
 
 OPTIONS:
     -e, --environment <ENVIRONMENT>
@@ -76,7 +76,7 @@ $ gitlab-rescue list --help
 
 gitlab-rescue-list 0.1.0
 Pedro Miranda <pedrodotmc@gmail.com>
-List all variables in JSON format
+List GitLab CI/CD variables in JSON format (by default first 20 variables).
 
 USAGE:
     gitlab-rescue list [OPTIONS]
@@ -88,12 +88,21 @@ FLAGS:
     -V, --version
             Prints version information
 
+    -a, --all
+            List all varibles. By default, this command only load first 20 variables (https://docs.gitlab.com/ee/api/README.html#offset-based-pagination).
+
     --from-all-if-missing
-            If variable is not found in defined environment (-e option), try with "All" environment.
+            If variable is not found in defined environment (-e option), try searching in "All" environment.
 
 OPTIONS:
     -e, --environment <ENVIRONMENT>
             Name of GitLab CI/CD environment (Default: All)
+        
+        --page <PAGE>
+            Page number (See https://docs.gitlab.com/ee/api/README.html#offset-based-pagination). Default: 1.
+
+        --per-page <PER_PAGE>
+            Number of items to list per page (See https://docs.gitlab.com/ee/api/README.html#offset-based-pagination). Default: 20, Max. 100.
 ```
 
 ## gitlab-rescue export
@@ -116,7 +125,7 @@ FLAGS:
             Prints version information
     
     --from-all-if-missing
-            If variable is not found in defined environment (-e option), try with "All" environment.
+            If variable is not found in defined environment (-e option), try searching in "All" environment.
 
 OPTIONS:
     -e, --environment <ENVIRONMENT>
@@ -132,11 +141,11 @@ OPTIONS:
 ## gitlab-rescue export-all
 
 ```text
-$ gitlab-rescue export-all --help
+$ gitlab-rescue env --help
 
-gitlab-rescue-export-all 0.1.0
+gitlab-rescue-env 0.1.0
 Pedro Miranda <pedrodotmc@gmail.com>
-Export all variables in current shell.
+Export variables in current shell (by default first 20 variables).
 
 USAGE:
     gitlab-rescue export-all [OPTIONS]
@@ -148,8 +157,11 @@ FLAGS:
     -V, --version
             Prints version information
 
+    -a, --all
+            List all varibles. By default, this command only load first 20 variables (https://docs.gitlab.com/ee/api/README.html#offset-based-pagination).
+
         --from-all-if-missing
-            If variables are not found in defined environment (-e option), try with "All" environment.
+            If variables are not found in defined environment (-e option), try searching in "All" environment.
 
 OPTIONS:
     -e, --environment <ENVIRONMENT>
@@ -157,6 +169,12 @@ OPTIONS:
 
         --folder <PATH>
             Path where variables with type "File" will be stored. Files will be created with format <VARIABLE_NAME>.var. Default: $PWD/.env.<ENVIRONMENT>.
+        
+        --page <PAGE>
+            Page number (See https://docs.gitlab.com/ee/api/README.html#offset-based-pagination). Default: 1.
+
+        --per-page <PER_PAGE>
+            Number of items to list per page (See https://docs.gitlab.com/ee/api/README.html#offset-based-pagination). Default: 20, Max. 100.
 ```
 
 ## Usage
@@ -164,7 +182,7 @@ OPTIONS:
 ```bash
 # Instead of using CLI flags, you can export GitLab instance variables
 $ export GITLAB_PROJECT=<GITLAB_PROJECT>
-$ export GITLAB_TOKEN=<GITLAB_TOKEN>
+$ export GITLAB_API_TOKEN=<GITLAB_API_TOKEN>
 $ export GITLAB_API_URL=<GITLAB_API_URL>
 
 # Get a variable
