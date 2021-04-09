@@ -17,26 +17,29 @@ FLAGS:
     -V, --version    Prints version information
 
 OPTIONS:
-    -p, --project-id <GITLAB_PROJECT>
+    -g, --group-id <GITLAB_GROUP_ID>
+            GitLab group ID
+
+    -p, --project-id <GITLAB_PROJECT_ID>
             GitLab project ID
 
     -t, --token <GITLAB_API_TOKEN>
             A valid GitLab API token
 
-    -u, --url <GITLAB_API_URL>
-            URL of GitLab API. Default: https://gitlab.com/api/v4
+    -u, --url <GITLAB_URL>
+            URL of GitLab API. Default: https://gitlab.com
 
 SUBCOMMANDS:
     help        Prints this message or the help of the given subcommand(s)
     get         Print variable in STDOUT
     list        List all variables in JSON format
     export      Export variable in current shell (if variable is File type, a file will be created and the path's file will be exported)
-    export-all  Export all variables in current shell (file type variables will be stored in a folder)
+    env         Export all variables in current shell (file type variables will be stored in a folder)
 
 Instead, you can set request parameters via environment variables:
 export GITLAB_PROJECT_ID=<GITLAB_PROJECT_ID>
 export GITLAB_API_TOKEN=<GITLAB_API_TOKEN>
-export GITLAB_API_URL=<GITLAB_API_URL>
+export GITLAB_URL=<GITLAB_URL>
 ```
 
 ## gitlab-rescue get
@@ -183,7 +186,7 @@ OPTIONS:
 # Instead of using CLI flags, you can export GitLab instance variables
 $ export GITLAB_PROJECT=<GITLAB_PROJECT>
 $ export GITLAB_API_TOKEN=<GITLAB_API_TOKEN>
-$ export GITLAB_API_URL=<GITLAB_API_URL>
+$ export GITLAB_URL=<GITLAB_URL>
 
 # Get a variable
 $ gitlab-rescue get -n MY_VARIABLE
