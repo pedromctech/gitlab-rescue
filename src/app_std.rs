@@ -1,5 +1,4 @@
-use std::io::Read;
-use std::io::BufReader;
+use std::io::{BufReader, Read};
 
 pub fn print_buffer(stdout: impl Read) {
     use std::io::BufRead;

@@ -1,13 +1,12 @@
 mod clap_app;
 
 use crate::clap_app::app;
-use gitlab_rescue::app_error::AppError;
 use gitlab_rescue::{
-    app_error::{handle_error, AppError::InvalidInput, Result},
+    app_error::{handle_error, AppError, AppError::InvalidInput, Result},
     get_variable::GetVariable,
     GroupCommand, ProjectCommand,
 };
-use std::{convert::TryFrom, process};
+use std::convert::TryFrom;
 
 fn invalid_input() -> AppError {
     InvalidInput("Introduced command is not valid. For more information try --help.".to_owned())

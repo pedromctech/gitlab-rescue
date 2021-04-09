@@ -1,4 +1,4 @@
-//! `adaptoid` is a tool for updating Dockerfile' packages.
+//! `gitlab-rescue` is a CLI tool for getting and importing GitLab CI/CD variables from a project (Read only)
 //!
 
 use crate::app_error::AppError;

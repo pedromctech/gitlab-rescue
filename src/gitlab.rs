@@ -1,5 +1,5 @@
-use crate::app_error::{AppError::InvalidInput, Result};
-use reqwest::{blocking::Client, Result as ReqwestResult};
+use crate::app_error::Result;
+use reqwest::blocking::Client;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
