@@ -27,10 +27,10 @@ pub struct GitLabApiV4 {
 }
 
 impl GitLabApiV4 {
-    fn get(&self, query: &str) -> Result<GitLabVariable> {
+    fn get(&self, endpoint: &str) -> Result<GitLabVariable> {
         Ok(Client::builder()
             .build()?
-            .get(format!("{}/{}", self.url, query))
+            .get(format!("{}/{}", self.url, endpoint))
             .header("PRIVATE-TOKEN", &self.token)
             .send()?
             .error_for_status()?
@@ -47,10 +47,7 @@ impl<'a> GitLabApi for GitLabApiV4 {
     }
 
     fn get_from_project(&self, project_id: &str, name: &str, environment: &str) -> Result<GitLabVariable> {
-        self.get(&format!(
-            "projects/{}/variables/{}?filter[environment_scope]={}",
-            project_id, name, environment
-        ))
+        self.get(&format!("projects/{}/variables/{}?filter[environment_scope]={}", project_id, name, environment))
     }
 
     fn get_from_group(&self, group_id: &str, name: &str) -> Result<GitLabVariable> {

@@ -1,4 +1,3 @@
-use clap::App;
 use clap::{crate_authors, crate_version, App as ClapApp, Arg, SubCommand};
 
 fn environment_arg() -> Arg<'static, 'static> {
@@ -25,22 +24,23 @@ fn gitlab_instance_args() -> [Arg<'static, 'static>; 2] {
     ]
 }
 
-fn get_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("get")
-        .version(crate_version!())
-        .author(crate_authors!())
-        .about("Print variable in STDOUT")
-        .args(&gitlab_instance_args())
-        .arg(&environment_arg())
-        .args(&[
-            Arg::with_name("VARIABLE_NAME")
-                .long_help("Name of GitLab CI/CD variable.")
-                .required(true)
-                .index(1),
-            Arg::with_name("from-all-if-missing")
-                .long("from-all-if-missing")
-                .long_help("If variable(s) is(are) not found in defined environment (-e option), try searching in \"All\" environment."),
-        ])
+fn project_and_group_args() -> [Arg<'static, 'static>; 2] {
+    [
+        Arg::with_name("project")
+            .long("project")
+            .short("p")
+            .value_name("GITLAB_PROJECT")
+            .long_help("The ID of a project or URL-encoded NAMESPACE/PROJECT_NAME of the project. This should not be used with --group option.")
+            .conflicts_with("group")
+            .required(true),
+        Arg::with_name("group")
+            .long("group")
+            .short("g")
+            .value_name("GITLAB_GROUP")
+            .long_help("The ID of a group or URL-encoded path of the group. This should not be used with --project option.")
+            .conflicts_with("project")
+            .required(true),
+    ]
 }
 
 pub fn app() -> ClapApp<'static, 'static> {
@@ -49,32 +49,31 @@ pub fn app() -> ClapApp<'static, 'static> {
         .author(crate_authors!())
         .about("CLI tool for getting and importing GitLab CI/CD variables from a project (Read only)")
         .subcommand(
-            // Project command
-            SubCommand::with_name("project")
+            // Get command
+            SubCommand::with_name("get")
                 .version(crate_version!())
                 .author(crate_authors!())
-                .about("Get variable from a GitLab project")
-                .arg(Arg::with_name("GITLAB_PROJECT_ID").long_help("GitLab project ID.").required(true).index(1))
-                // Project subcommands
-                .subcommand(get_subcommand()),
+                .about("Print variable in STDOUT")
+                .args(&gitlab_instance_args())
+                .arg(&environment_arg())
+                .args(&project_and_group_args())
+                .args(&[
+                    Arg::with_name("VARIABLE_NAME")
+                        .long_help("Name of GitLab CI/CD variable.")
+                        .required(true)
+                        .index(1),
+                    Arg::with_name("from-all-if-missing")
+                        .long("from-all-if-missing")
+                        .long_help("If variable(s) is(are) not found in defined environment (-e option), try searching in \"All\" environment."),
+                ])
         )
         .subcommand(
-            // Group command
-            SubCommand::with_name("group")
-                .version(crate_version!())
-                .author(crate_authors!())
-                .about("Get variable from a GitLab group")
-                .arg(Arg::with_name("GITLAB_GROUP_ID").long_help("GitLab group ID.").required(true).index(1))
-                // Group subcommands
-                .subcommand(get_subcommand()),
-        )
-        .subcommand(
-            // Env command
-            SubCommand::with_name("env")
+            // Local Env command
+            SubCommand::with_name("local-env")
                 .version(crate_version!())
                 .author(crate_authors!())
                 .about("Export project variables in the current shell (by default first 20 variables)")
-                .arg(Arg::with_name("GITLAB_PROJECT_ID").long_help("GitLab project ID.").required(true).index(1))
+                .arg(Arg::with_name("GITLAB_PROJECT").long_help("The ID of a project or URL-encoded NAMESPACE/PROJECT_NAME of the project.").required(true).index(1))
                 .args(&gitlab_instance_args())
                 .arg(&environment_arg())
                 .args(&[
@@ -82,8 +81,9 @@ pub fn app() -> ClapApp<'static, 'static> {
                         .long("folder")
                         .value_name("PATH")
                         .long_help("Path where variables with type \"File\" will be stored. Files will be created with format <VARIABLE_NAME>.var. [default: $PWD/.env.<ENVIRONMENT>]"),
-                    Arg::with_name("full-list")
-                        .long("full-list")
+                    Arg::with_name("all")
+                        .long("all")
+                        .short("a")
                         .long_help("List all varibles (without this option, only 20 variables are showed). This option ovewrites --page and --per-page options."),
                     Arg::with_name("page")
                         .long("page")
