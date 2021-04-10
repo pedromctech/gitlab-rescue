@@ -1,10 +1,6 @@
-use crate::{
-    app_error::{AppError, Result},
-    command::Command,
-    gitlab::GitLabApi,
-};
+use crate::{api_client::api_client, app_error::Result, gitlab::GitLabApi, Performable};
 use clap::ArgMatches;
-use std::{convert::TryFrom, env};
+use std::{convert::From, env};
 use urlencoding::encode;
 
 #[derive(Debug)]
@@ -13,7 +9,7 @@ pub struct GetVariable {
     gitlab_project: Option<String>,
     /// Group ID or URL-encoded path of the group
     gitlab_group: Option<String>,
-    /// Nam&self, &self, e of GitLab CI/CD environment where Self: Sized
+    /// Name of GitLab CI/CD environment
     environment: String,
     /// If variable is not found in defined environment (-e option), try with "All" environment.
     from_all_if_missing: bool,
@@ -23,10 +19,9 @@ pub struct GetVariable {
     token: String,
 }
 
-impl TryFrom<&ArgMatches<'_>> for GetVariable {
-    type Error = AppError;
-    fn try_from(argm: &ArgMatches<'_>) -> Result<Self> {
-        Ok(GetVariable {
+impl From<&ArgMatches<'_>> for GetVariable {
+    fn from(argm: &ArgMatches<'_>) -> Self {
+        GetVariable {
             gitlab_project: if let Some(v) = argm.value_of("project") { Some(encode(v)) } else { None },
             gitlab_group: if let Some(v) = argm.value_of("group") { Some(v.to_owned()) } else { None },
             environment: match argm.value_of("environment") {
@@ -42,26 +37,26 @@ impl TryFrom<&ArgMatches<'_>> for GetVariable {
                 Some(s) => s.to_owned(),
                 None => env::var("GITLAB_API_TOKEN").unwrap_or(String::new()),
             },
-        })
+        }
     }
 }
 
-impl Command for GetVariable {
+impl Performable for GetVariable {
     fn perform(&self, name: &str) -> Result<String> {
         assert_ne!(self.gitlab_project.as_ref().xor(self.gitlab_group.as_ref()), None);
-        let api = self.api_v4(&self.url, &self.token);
+        let api_client = api_client("v4", &self.url, &self.token);
         match &self.gitlab_project {
-            Some(p) => match api.get_from_project(&p, name, &self.environment) {
+            Some(p) => match api_client.get_from_project(&p, name, &self.environment) {
                 Ok(v) => Ok(v.value),
                 Err(err) => {
                     if self.from_all_if_missing {
-                        Ok(api.get_from_project(&self.gitlab_project.as_ref().unwrap(), name, "*")?.value)
+                        Ok(api_client.get_from_project(&self.gitlab_project.as_ref().unwrap(), name, "*")?.value)
                     } else {
                         Err(err)
                     }
                 }
             },
-            None => Ok(api.get_from_group(self.gitlab_group.as_ref().unwrap(), name)?.value),
+            None => Ok(api_client.get_from_group(self.gitlab_group.as_ref().unwrap(), name)?.value),
         }
     }
 }
