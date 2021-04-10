@@ -1,5 +1,5 @@
 use crate::app_error::Result;
-use reqwest::blocking::Client;
+use reqwest::blocking::{Client as BlockingClient};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -28,7 +28,7 @@ pub struct GitLabApiV4 {
 
 impl GitLabApiV4 {
     fn get(&self, endpoint: &str) -> Result<GitLabVariable> {
-        Ok(Client::builder()
+        Ok(BlockingClient::builder()
             .build()?
             .get(format!("{}/{}", self.url, endpoint))
             .header("PRIVATE-TOKEN", &self.token)
