@@ -58,25 +58,39 @@ pub fn app() -> ClapApp<'static, 'static> {
                 .arg(&environment_arg())
                 .args(&project_and_group_args())
                 .args(&[
-                    Arg::with_name("VARIABLE_NAME")
-                        .long_help("Name of GitLab CI/CD variable.")
-                        .required(true)
-                        .index(1),
+                    Arg::with_name("VARIABLE_NAME").long_help("Name of GitLab CI/CD variable.").required(true).index(1),
                     Arg::with_name("from-all-if-missing")
                         .long("from-all-if-missing")
                         .long_help("If variable(s) is(are) not found in defined environment (-e option), try searching in \"All\" environment."),
-                ])
+                ]),
         )
         .subcommand(
             // Local Env command
-            SubCommand::with_name("local-env")
+            SubCommand::with_name("dotenv")
                 .version(crate_version!())
                 .author(crate_authors!())
                 .about("Export project variables in the current shell (by default first 20 variables)")
-                .arg(Arg::with_name("GITLAB_PROJECT").long_help("The ID of a project or URL-encoded NAMESPACE/PROJECT_NAME of the project.").required(true).index(1))
+                .arg(
+                    Arg::with_name("GITLAB_PROJECT")
+                        .long_help("The ID of a project or URL-encoded NAMESPACE/PROJECT_NAME of the project.")
+                        .required(true)
+                        .index(1),
+                )
                 .args(&gitlab_instance_args())
                 .arg(&environment_arg())
                 .args(&[
+                    Arg::with_name("output")
+                        .long("output")
+                        .short("o")
+                        .value_name("OUTPUT_FILE")
+                        .long_help("Write dotenv to a file instead of stdout."),
+                    Arg::with_name("shell")
+                        .long("shell")
+                        .short("s")
+                        .value_name("SHELL")
+                        .possible_values(&["bash", "zsh", "fish"])
+                        .default_value("bash")
+                        .long_help("Generate dotenv for this shell type. Supported shells are: bash, zsh and fish."),
                     Arg::with_name("folder")
                         .long("folder")
                         .value_name("PATH")
@@ -97,7 +111,7 @@ pub fn app() -> ClapApp<'static, 'static> {
                         .default_value("20"),
                     Arg::with_name("with-group-vars")
                         .long("with-group-vars")
-                        .long_help("Export group variables if project belongs to a group"),
+                        .long_help("Export group variables if project belongs to a group."),
                 ]),
         )
 }

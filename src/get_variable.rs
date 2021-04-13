@@ -1,10 +1,18 @@
-use crate::{api_client::api_client, app_error::Result, gitlab::GitLabApi, Performable};
+use crate::api_client::api_client;
+use crate::app_error::Result;
+use crate::gitlab_api::GitLabApi;
+use crate::io::IO;
+use crate::Performable;
+use crate::{app_info, app_success, extract_environment, extract_token, extract_url};
 use clap::ArgMatches;
-use std::{convert::From, env};
+use std::convert::From;
+use std::env;
 use urlencoding::encode;
 
-#[derive(Debug)]
-pub struct GetVariable {
+#[derive(Debug, Clone)]
+pub struct GetVariableCommand {
+    /// Variable name
+    name: String,
     /// Project ID or URL-encoded NAMESPACE/PROJECT_NAME
     gitlab_project: Option<String>,
     /// Group ID or URL-encoded path of the group
@@ -19,44 +27,52 @@ pub struct GetVariable {
     token: String,
 }
 
-impl From<&ArgMatches<'_>> for GetVariable {
+impl From<&ArgMatches<'_>> for GetVariableCommand {
     fn from(argm: &ArgMatches<'_>) -> Self {
-        GetVariable {
+        GetVariableCommand {
+            name: argm.value_of("VARIABLE_NAME").unwrap().to_owned(),
             gitlab_project: if let Some(v) = argm.value_of("project") { Some(encode(v)) } else { None },
             gitlab_group: if let Some(v) = argm.value_of("group") { Some(v.to_owned()) } else { None },
-            environment: match argm.value_of("environment") {
-                Some("All") | None => "*".to_owned(),
-                Some(val) => val.to_string(),
-            },
+            environment: extract_environment!(argm),
             from_all_if_missing: argm.is_present("from-all-if-missing"),
-            url: match argm.value_of("url") {
-                Some(s) => s.to_owned(),
-                None => env::var("GITLAB_URL").unwrap_or(String::from("https://gitlab.com")),
-            },
-            token: match argm.value_of("token") {
-                Some(s) => s.to_owned(),
-                None => env::var("GITLAB_API_TOKEN").unwrap_or(String::new()),
-            },
+            url: extract_url!(argm),
+            token: extract_token!(argm),
         }
     }
 }
 
-impl Performable for GetVariable {
-    fn perform(&self, name: &str) -> Result<String> {
-        assert_ne!(self.gitlab_project.as_ref().xor(self.gitlab_group.as_ref()), None);
-        let api_client = api_client("v4", &self.url, &self.token);
-        match &self.gitlab_project {
-            Some(p) => match api_client.get_from_project(&p, name, &self.environment) {
-                Ok(v) => Ok(v.value),
-                Err(err) => {
-                    if self.from_all_if_missing {
-                        Ok(api_client.get_from_project(&self.gitlab_project.as_ref().unwrap(), name, "*")?.value)
-                    } else {
-                        Err(err)
-                    }
-                }
-            },
-            None => Ok(api_client.get_from_group(self.gitlab_group.as_ref().unwrap(), name)?.value),
-        }
+impl GetVariableCommand {
+    fn get_variable_from_group(&self, api: &impl GitLabApi) -> Result<String> {
+        app_info!("Getting variable from group {}...", &self.gitlab_group.as_ref().unwrap());
+        api.get_from_group(self.gitlab_group.as_ref().unwrap(), &self.name).map(|g| g.value)
+    }
+
+    fn get_variable_from_project(&self, api: &impl GitLabApi, p: &str) -> Result<String> {
+        app_info!("Getting variable from project {}...", p);
+        api.get_from_project(p, &self.name, &self.environment).and_then(|var| Ok(var.value)).or_else(|err| {
+            if self.environment != "*" && self.from_all_if_missing {
+                app_info!("Getting variable from \"All\" environment...");
+                api.get_from_project(p, &self.name, "*").and_then(|g| Ok(g.value))
+            } else {
+                Err(err)
+            }
+        })
+    }
+
+    fn print_result(&self, value: String) {
+        app_success!("Variable {} obtained successfully", &self.name);
+        println!("{}", value);
+    }
+}
+
+impl Performable for GetVariableCommand {
+    fn get_action(self) -> IO<Result<()>> {
+        IO::unit(move || {
+            let api = api_client("v4", &self.url, &self.token);
+            self.gitlab_project
+                .as_ref()
+                .map_or_else(|| self.get_variable_from_group(&api), |p| self.get_variable_from_project(&api, p))
+                .map(|v| self.print_result(v))
+        })
     }
 }
