@@ -1,11 +1,3 @@
-#[macro_export]
-/// Extract GitLab environment from clap args
-macro_rules! io_unit {
-    ($effect:expr) => {
-        IO::unit(move || $effect)
-    };
-}
-
 pub struct IO<A>(Box<dyn FnOnce() -> A>);
 
 impl<A: 'static> IO<A> {

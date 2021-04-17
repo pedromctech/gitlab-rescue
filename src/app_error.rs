@@ -20,6 +20,18 @@ impl From<reqwest::Error> for AppError {
     }
 }
 
+impl From<reqwest::header::ToStrError> for AppError {
+    fn from(e: reqwest::header::ToStrError) -> AppError {
+        AppError::Api(format!("{}", e))
+    }
+}
+
+impl From<std::num::ParseIntError> for AppError {
+    fn from(e: std::num::ParseIntError) -> AppError {
+        AppError::Cli(format!("{}", e))
+    }
+}
+
 impl Display for AppError {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
         match self {

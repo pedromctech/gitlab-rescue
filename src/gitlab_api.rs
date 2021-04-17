@@ -1,24 +1,9 @@
 extern crate proc_macro;
-use crate::app_error::Result;
-use reqwest::{blocking::Client as BlockingClient};
+use crate::app_error::{AppError::Cli, Result};
+use reqwest::blocking::{Client as BlockingClient, Response as BlockingResponse};
 use serde::Deserialize;
-use std::sync::mpsc::channel;
-use threadpool::ThreadPool;
 
-/// Extract GITLAB_API_TOKEN from clap args
-macro_rules! get_header_as_u32 {
-    ($response:expr, $header:expr) => {
-        match $response.headers().get($header) {
-            Some(h) => match h.to_str().ok() {
-                Some(val) => val.parse::<u32>().ok(),
-                None => None,
-            },
-            None => None,
-        }
-    };
-}
-
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct GitLabVariable {
     /// The type of a variable. Available types are: env_var and file
     pub variable_type: String,
@@ -26,22 +11,22 @@ pub struct GitLabVariable {
     key: String,
     /// The value of a variable
     pub value: String,
+    /// Variable's environment
+    pub environment_scope: String,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct Pagination {
     /// The index of the next page.
-    x_next_page: Option<u32>,
+    x_next_page: usize,
     /// The index of the current page (starting at 1).
-    x_page: Option<u32>,
+    x_page: usize,
     /// The number of items per page.
-    x_per_page: Option<u32>,
-    /// The index of the previous page.
-    x_prev_page: Option<u32>,
+    pub x_per_page: usize,
     /// The total number of items.
-    x_total: Option<u32>,
+    pub x_total: usize,
     /// The total number of pages.
-    x_total_pages: Option<u32>,
+    x_total_pages: usize,
 }
 
 pub trait GitLabApi {
@@ -51,10 +36,10 @@ pub trait GitLabApi {
     /// Get a variable value from a specific GitLab group
     fn get_from_group(&self, group: &str, name: &str) -> Result<GitLabVariable>;
     /// List variables from a specific GitLab project
-    fn list_from_project(&self, project: &str, environment: &str, page: u32, per_page: u32) -> Result<(Vec<GitLabVariable>, Pagination)>;
+    fn list_from_project(&self, project: &str, environment: &str, page: usize, per_page: usize) -> Result<(Vec<GitLabVariable>, Pagination)>;
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct GitLabApiV4 {
     url: String,
     token: String,
@@ -76,7 +61,7 @@ impl<'a> GitLabApi for GitLabApiV4 {
         self.get(&format!("groups/{}/variables/{}", group, name))
     }
 
-    fn list_from_project(&self, project: &str, environment: &str, page: u32, per_page: u32) -> Result<(Vec<GitLabVariable>, Pagination)> {
+    fn list_from_project(&self, project: &str, environment: &str, page: usize, per_page: usize) -> Result<(Vec<GitLabVariable>, Pagination)> {
         self.list(&format!("projects/{}/variables?filter[environment_scope]={}&page={}&per_page={}", project, environment, page, per_page))
     }
 }
@@ -100,13 +85,20 @@ impl GitLabApiV4 {
             .send()?
             .error_for_status()?;
         let pag = Pagination {
-            x_next_page: get_header_as_u32!(res, "x-next-page"),
-            x_page: get_header_as_u32!(res, "x-page"),
-            x_per_page: get_header_as_u32!(res, "x-per-page"),
-            x_prev_page: get_header_as_u32!(res, "x-prev-page"),
-            x_total: get_header_as_u32!(res, "x-total"),
-            x_total_pages: get_header_as_u32!(res, "x-total-pages"),
+            x_next_page: self.get_pagination_header(&res, "x-next-page")?,
+            x_page: self.get_pagination_header(&res, "x-page")?,
+            x_per_page: self.get_pagination_header(&res, "x-per-page")?,
+            x_total: self.get_pagination_header(&res, "x-total")?,
+            x_total_pages: self.get_pagination_header(&res, "x-total-pages")?,
         };
         Ok((res.json()?, pag))
+    }
+
+    fn get_pagination_header(&self, res: &BlockingResponse, header: &str) -> Result<usize> {
+        match res.headers().get(header) {
+            Some(h) if h.to_str()?.is_empty() => Ok(0),
+            Some(h) if h.to_str()?.parse::<usize>().is_ok() => Ok(h.to_str()?.parse::<usize>().unwrap()),
+            _ => Err(Cli(format!("Header {} not valid in GitLab response", header))),
+        }
     }
 }

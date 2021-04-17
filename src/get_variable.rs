@@ -31,8 +31,8 @@ impl From<&ArgMatches<'_>> for GetVariableCommand {
     fn from(argm: &ArgMatches<'_>) -> Self {
         GetVariableCommand {
             name: argm.value_of("VARIABLE_NAME").unwrap().to_owned(),
-            gitlab_project: if let Some(v) = argm.value_of("project") { Some(encode(v)) } else { None },
-            gitlab_group: if let Some(v) = argm.value_of("group") { Some(v.to_owned()) } else { None },
+            gitlab_project: argm.value_of("project").map(|p| encode(p)),
+            gitlab_group: argm.value_of("project").map(|g| g.to_owned()),
             environment: extract_environment!(argm),
             from_all_if_missing: argm.is_present("from-all-if-missing"),
             url: extract_url!(argm),
@@ -43,17 +43,17 @@ impl From<&ArgMatches<'_>> for GetVariableCommand {
 
 impl GetVariableCommand {
     fn get_variable_from_group(&self) -> Result<String> {
-        api_client("v4", &self.url, &self.token)
+        api_client(&self.url, &self.token)
             .get_from_group(self.gitlab_group.as_ref().unwrap(), &self.name)
             .map(|g| g.value)
     }
 
     fn get_variable_from_project(&self, p: &str) -> Result<String> {
-        let api = api_client("v4", &self.url, &self.token);
+        let api = api_client(&self.url, &self.token);
         api.get_from_project(p, &self.name, &self.environment)
-            .and_then(|var| Ok(var.value))
+            .map(|g| g.value)
             .or_else(|e| match self.environment != "*" && self.from_all_if_missing {
-                true => api.get_from_project(p, &self.name, "*").and_then(|g| Ok(g.value)),
+                true => api.get_from_project(p, &self.name, "*").map(|g| g.value),
                 _ => Err(e),
             })
     }
@@ -61,20 +61,20 @@ impl GetVariableCommand {
 
 impl Performable for GetVariableCommand {
     fn get_action(self) -> IO<Result<()>> {
-        IO::unit(move || match self.gitlab_project.as_ref() {
-            Some(p) => {
-                app_info!("Getting variable from project {}...", p);
-                self.get_variable_from_project(p)
-            }
-            None => {
-                app_info!("Getting variable from group {}...", &self.gitlab_group.as_ref().unwrap());
-                self.get_variable_from_group()
-            }
-        })
-        .map(|r| {
-            r.and_then(|v| {
-                app_success!("Variable obtained successfully");
-                Ok(println!("{}", v))
+        IO::unit(move || {
+            (match self.gitlab_project.as_ref() {
+                Some(p) => {
+                    app_info!("Getting variable from project {}...", p);
+                    self.get_variable_from_project(p)
+                }
+                None => {
+                    app_info!("Getting variable from group {}...", &self.gitlab_group.as_ref().unwrap());
+                    self.get_variable_from_group()
+                }
+            })
+            .map(|v| {
+                app_success!("Variable {} obtained successfully", self.name);
+                println!("{}", v)
             })
         })
     }

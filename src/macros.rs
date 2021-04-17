@@ -48,12 +48,9 @@ macro_rules! extract_environment {
 }
 
 #[macro_export]
-/// Extract numeric argument from clap args
-macro_rules! numeric_arg {
-    ($clap_args:expr, $arg:expr, $default:expr) => {{
-        match $clap_args.value_of($arg) {
-            Some(v) if v.parse::<u32>().is_ok() => v.parse::<u32>().unwrap(),
-            _ => $default,
-        }
-    }};
+/// Extract GitLab environment from clap args
+macro_rules! ceil_div {
+    ($dividend:expr, $divider:expr) => {
+        ($dividend as f64 / $divider as f64).ceil() as usize
+    };
 }
