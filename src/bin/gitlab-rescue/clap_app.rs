@@ -109,6 +109,10 @@ pub fn app() -> ClapApp<'static, 'static> {
                         .value_name("PER_PAGE")
                         .long_help("Number of items to list per page.\r\n(See https://docs.gitlab.com/ee/api/README.html#offset-based-pagination).")
                         .default_value("20"),
+                    Arg::with_name("parallel")
+                        .long("parallel")
+                        .value_name("PARALLEL")
+                        .long_help("Number of threads for GitLab API requests."),
                     Arg::with_name("with-group-vars")
                         .long("with-group-vars")
                         .long_help("Export group variables if project belongs to a group."),

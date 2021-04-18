@@ -1,10 +1,13 @@
+use crate::app_error::AppError;
 use crate::gitlab_api::GitLabApiV4;
+use crate::gitlab_api::GitLabProject;
 use crate::gitlab_api::Pagination;
+use ansi_term::Colour::Yellow;
 use crate::IO;
 use crate::{
     api_client::api_client,
     app_error::{AppError::InvalidInput, Result},
-    app_info, ceil_div, extract_environment, extract_token, extract_url,
+    app_info, app_warning, ceil_div, extract_environment, extract_token, extract_url, floor_div,
     gitlab_api::{GitLabApi, GitLabVariable},
     Performable,
 };
@@ -13,6 +16,8 @@ use num_cpus;
 use std::collections::HashMap;
 use std::convert::From;
 use std::env;
+use std::fs;
+use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
@@ -23,19 +28,20 @@ use urlencoding::encode;
 const DEFAULT_PAGE: usize = 1;
 const DEFAULT_PER_PAGE: usize = 20;
 const MAX_PER_PAGE: usize = 100;
+const GITLAB_ENV_ALL: &str = "*";
 
 #[derive(Clone, Debug)]
 pub struct DotEnvCommand {
     /// Project ID or URL-encoded NAMESPACE/PROJECT_NAME
-    gitlab_project: String,
+    gitlab_project: GitLabProject,
     /// Name of GitLab CI/CD environment
     environment: String,
     /// Write dotenv to a file instead of stdout
-    output: Option<String>,
+    output_file: Option<String>,
     /// Generate dotenv for this shell type.
     shell: ShellType,
     /// Path where variables with type "File" will be stored.
-    folder: Option<String>,
+    folder: String,
     /// List all varibles (without this option, only 20 variables are showed).
     all: bool,
     /// Page number
@@ -44,10 +50,6 @@ pub struct DotEnvCommand {
     per_page: usize,
     /// Export group variables if project belongs to a group
     with_group_vars: bool,
-    /// GitLab URL
-    url: String,
-    /// GitLab API Token
-    token: String,
     /// Parallelism
     parallel: usize,
 }
@@ -56,11 +58,16 @@ impl From<&ArgMatches<'_>> for DotEnvCommand {
     fn from(argm: &ArgMatches<'_>) -> Self {
         assert!(argm.is_present("GITLAB_PROJECT"));
         DotEnvCommand {
-            gitlab_project: encode(argm.value_of("GITLAB_PROJECT").unwrap()),
+            gitlab_project: GitLabProject {
+                name: encode(argm.value_of("GITLAB_PROJECT").unwrap()),
+                url: extract_url!(argm),
+                token: extract_token!(argm),
+                variables: vec![],
+            },
             environment: extract_environment!(argm),
-            output: argm.value_of("output").map(|v| v.to_owned()),
+            output_file: argm.value_of("output").map(|v| v.to_owned()),
             shell: if let Some("fish") = argm.value_of("shell") { ShellType::Fish } else { ShellType::Posix },
-            folder: argm.value_of("folder").map(|v| v.to_owned()),
+            folder: argm.value_of("folder").map_or_else(|| format!(".env.{}", extract_environment!(argm)), |v| v.to_owned()),
             all: argm.is_present("all"),
             page: argm
                 .value_of("page")
@@ -69,8 +76,6 @@ impl From<&ArgMatches<'_>> for DotEnvCommand {
                 .value_of("per-page")
                 .map_or_else(|| DEFAULT_PER_PAGE, |v| if v.parse::<usize>().is_ok() { v.parse::<usize>().unwrap() } else { DEFAULT_PER_PAGE }),
             with_group_vars: argm.is_present("with-group-vars"),
-            url: extract_url!(argm),
-            token: extract_token!(argm),
             parallel: argm
                 .value_of("parallel")
                 .map_or_else(|| num_cpus::get(), |v| if v.parse::<usize>().is_ok() { v.parse::<usize>().unwrap() } else { num_cpus::get() }),
@@ -78,65 +83,74 @@ impl From<&ArgMatches<'_>> for DotEnvCommand {
     }
 }
 
-impl DotEnvCommand {
-    fn create_file(var: GitLabVariable) -> GitLabVariable {
-        if var.variable_type == "file" {
-            println!("Create folder if not exists. If Error, use default folder");
-            println!("Create file");
-        }
-        var
-    }
-    fn create_folder(folder: &str, variables: Vec<GitLabVariable>) {
-        todo!();
-    }
-    fn get_vars(&self) -> Result<Vec<GitLabVariable>> {
-        if self.all {
-            self.get_all_vars()
-        } else {
-            self.get_paginated_vars()
-        }
-    }
-    fn get_paginated_vars(&self) -> Result<Vec<GitLabVariable>> {
-        Ok(api_client(&self.url, &self.token)
-            .list_from_project(&self.gitlab_project, &self.environment, self.page, self.per_page)?
-            .0)
-    }
-    fn get_all_vars(&self) -> Result<Vec<GitLabVariable>> {
-        api_client(&self.url, &self.token)
-            .list_from_project(&self.gitlab_project, &self.environment, self.page, self.per_page)
-            .and_then(|(list, pag)| match list.len() >= pag.x_total {
-                true => Ok(list),
-                _ => Ok([list, self.get_remaining_variables(pag.x_total - pag.x_per_page)?].concat()),
-            })
-    }
-    fn create_vars_files(&self) -> Result<Vec<GitLabVariable>> {
-        todo!();
-    }
-    // fn print_variables_to_stdout(&self) -> Result<String> {}
-    // fn print_variables_to_file(&self) -> Result<String> {}
-    fn get_remaining_variables(&self, remaining: usize) -> Result<Vec<GitLabVariable>> {
-        let pool = ThreadPool::new(self.parallel);
-        let (tx, rx) = channel();
-        let (num_requests, records_per_request) = match ceil_div!(remaining, self.parallel) <= MAX_PER_PAGE {
-            true => (self.parallel, ceil_div!(remaining, self.parallel)),
-            _ => (ceil_div!(remaining, MAX_PER_PAGE), MAX_PER_PAGE),
-        };
-        (1..=num_requests).for_each(|i| {
-            let (tx, api, project, environment) = (tx.clone(), api_client(&self.url, &self.token), self.gitlab_project.clone(), self.environment.clone());
-            pool.execute(move || tx.send(api.list_from_project(&project, &environment, i + 1, records_per_request)).expect(""));
-        });
-        rx.iter()
-            .take(num_requests)
-            .fold(Ok(vec![]), |a: Result<Vec<GitLabVariable>>, res| a.and_then(|acc| Ok([acc, res.map(|(l, _)| l)?].concat())))
+fn get_vars(cmd: &DotEnvCommand) -> Result<Vec<GitLabVariable>> {
+    api_client(&cmd.gitlab_project.url, &cmd.gitlab_project.token)
+        .list_from_project(&cmd.gitlab_project.name, if cmd.all { 1 } else { cmd.page }, if cmd.all { MAX_PER_PAGE } else { cmd.per_page })
+        .and_then(|(list, pag)| match cmd.all && list.len() < pag.x_total {
+            true => Ok([list, get_remaining_variables(&cmd.gitlab_project, num_requests(pag.x_total - pag.x_per_page), cmd.parallel)?].concat()),
+            _ => Ok(list),
+        })
+        .map(|l| l.into_iter().filter(|v| v.environment_scope == GITLAB_ENV_ALL || v.environment_scope == cmd.environment).collect())
+}
+
+fn get_remaining_variables(project: &GitLabProject, requests: usize, parallel: usize) -> Result<Vec<GitLabVariable>> {
+    let pool = ThreadPool::new(parallel);
+    let (tx, rx) = channel();
+    (0..requests)
+        .fold(rx, |acc, i| {
+            let (tx, project) = (tx.clone(), project.clone());
+            pool.execute(move || tx.send(api_client(&project.url, &project.token).list_from_project(&project.name, i + 2, MAX_PER_PAGE)).expect(""));
+            acc
+        })
+        .iter()
+        .take(requests)
+        .fold(Ok(vec![]), |a: Result<Vec<GitLabVariable>>, res| a.and_then(|acc| Ok([acc, res.map(|(l, _)| l)?].concat())))
+}
+
+/// Calculate number of needed requests to get remaining variables
+///
+/// # Arguments
+///
+/// * `r` - Remaining records
+///
+fn num_requests(r: usize) -> usize {
+    match r > MAX_PER_PAGE {
+        true => (r as f64 / MAX_PER_PAGE as f64).ceil() as usize,
+        _ => 1,
     }
 }
 
-impl Performable for DotEnvCommand {
-    fn get_action(self) -> IO<Result<()>> {
-        IO::unit(move || {
-            app_info!("Getting variables from project {}...", self.gitlab_project);
-            self.get_vars().map(|l| println!("{:?}", l))
+fn create_files(folder: String, variables: Vec<GitLabVariable>) -> IO<std::result::Result<(), std::io::Error>> {
+    IO::unit(move || {
+        fs::create_dir_all(folder.clone()).and_then(|_| {
+            variables
+                .iter()
+                .filter(|v| v.variable_type == "file")
+                .map(|v| (format!("{}/{}.var", folder, v.key), v.value.as_bytes()))
+                .fold(Ok(()), |acc, (file, contents)| {
+                    acc.and(File::create(file.clone()).map(|mut f| f.write_all(contents)).map(|_| app_info!("File {} created successfully", file)))
+                })
         })
+    })
+}
+
+impl Performable for DotEnvCommand {
+    fn get_action(mut self) -> IO<Result<()>> {
+        let unit = IO::unit(move || {
+            app_info!("Getting variables from project {}...", self.gitlab_project.name);
+            self.gitlab_project.variables.extend(get_vars(&self)?);
+            Ok(self)
+        })
+        .flat_map(|res: Result<DotEnvCommand>| {
+            app_info!("Creating files for variables of type File...");
+            res.clone()
+                .map_or_else(|e| IO::unit(|| Err(e)), |cmd| create_files(cmd.folder, cmd.gitlab_project.variables).map(|_| res))
+        })
+        .map(|res: Result<DotEnvCommand>| {
+            res.map(|cmd| {
+                app_info!("Creating dotenv command list for {} shell...", cmd.shell);
+            })
+        });
         // IO::unit(move || {
         //     app_info!("Getting variables from project {}...", self.gitlab_project);
         //     self.get_vars();
@@ -145,6 +159,7 @@ impl Performable for DotEnvCommand {
         // Create output file for dotenv OR print dotenv INPUT: output file, dotenv commands
         // })
         // .map(|l| println!("{}", self.folder.unwrap()));
+        // todo!();
     }
 }
 
@@ -157,6 +172,15 @@ trait DotEnv {
 pub enum ShellType {
     Posix,
     Fish,
+}
+
+impl Display for ShellType {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        match self {
+            ShellType::Posix => write!(f, "{}", Yellow.bold().paint("POSIX")),
+            ShellType::Fish => write!(f, "{}", Yellow.bold().paint("Fish")),
+        }
+    }
 }
 
 impl DotEnv for ShellType {

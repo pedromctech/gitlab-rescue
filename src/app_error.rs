@@ -5,7 +5,7 @@ use std::{
     process,
 };
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum AppError {
     InvalidInput(String),
     Api(String),
@@ -23,6 +23,12 @@ impl From<reqwest::Error> for AppError {
 impl From<reqwest::header::ToStrError> for AppError {
     fn from(e: reqwest::header::ToStrError) -> AppError {
         AppError::Api(format!("{}", e))
+    }
+}
+
+impl From<std::io::Error> for AppError {
+    fn from(e: std::io::Error) -> AppError {
+        AppError::InvalidInput(format!("{}", e))
     }
 }
 

@@ -3,12 +3,24 @@ use crate::app_error::{AppError::Cli, Result};
 use reqwest::blocking::{Client as BlockingClient, Response as BlockingResponse};
 use serde::Deserialize;
 
+#[derive(Clone, Debug)]
+pub struct GitLabProject {
+    /// GitLab project name
+    pub name: String,
+    /// Instance URL of project
+    pub url: String,
+    /// Token allowed in project
+    pub token: String,
+    /// Project's variables
+    pub variables: Vec<GitLabVariable>,
+}
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct GitLabVariable {
     /// The type of a variable. Available types are: env_var and file
     pub variable_type: String,
     /// The key of the variable
-    key: String,
+    pub key: String,
     /// The value of a variable
     pub value: String,
     /// Variable's environment
@@ -36,7 +48,7 @@ pub trait GitLabApi {
     /// Get a variable value from a specific GitLab group
     fn get_from_group(&self, group: &str, name: &str) -> Result<GitLabVariable>;
     /// List variables from a specific GitLab project
-    fn list_from_project(&self, project: &str, environment: &str, page: usize, per_page: usize) -> Result<(Vec<GitLabVariable>, Pagination)>;
+    fn list_from_project(&self, project: &str, page: usize, per_page: usize) -> Result<(Vec<GitLabVariable>, Pagination)>;
 }
 
 #[derive(Clone, Debug)]
@@ -61,8 +73,8 @@ impl<'a> GitLabApi for GitLabApiV4 {
         self.get(&format!("groups/{}/variables/{}", group, name))
     }
 
-    fn list_from_project(&self, project: &str, environment: &str, page: usize, per_page: usize) -> Result<(Vec<GitLabVariable>, Pagination)> {
-        self.list(&format!("projects/{}/variables?filter[environment_scope]={}&page={}&per_page={}", project, environment, page, per_page))
+    fn list_from_project(&self, project: &str, page: usize, per_page: usize) -> Result<(Vec<GitLabVariable>, Pagination)> {
+        self.list(&format!("projects/{}/variables?page={}&per_page={}", project, page, per_page))
     }
 }
 

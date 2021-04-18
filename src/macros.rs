@@ -15,6 +15,14 @@ macro_rules! app_info {
 }
 
 #[macro_export]
+macro_rules! app_warning {
+    ($($arg:tt)*) => ({
+        use ansi_term::Colour::Yellow;
+        eprintln!("{} {}", Yellow.paint("[WARNING]"), format!($($arg)*))
+    })
+}
+
+#[macro_export]
 /// Extract GITLAB_URL from clap args
 macro_rules! extract_url {
     ($clap_args:expr) => {
@@ -48,9 +56,17 @@ macro_rules! extract_environment {
 }
 
 #[macro_export]
-/// Extract GitLab environment from clap args
+/// Ceil division between two numbers
 macro_rules! ceil_div {
     ($dividend:expr, $divider:expr) => {
         ($dividend as f64 / $divider as f64).ceil() as usize
+    };
+}
+
+#[macro_export]
+/// Floor division between two numbers
+macro_rules! floor_div {
+    ($dividend:expr, $divider:expr) => {
+        ($dividend as f64 / $divider as f64).floor() as usize
     };
 }
