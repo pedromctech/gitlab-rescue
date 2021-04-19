@@ -95,20 +95,11 @@ pub fn app() -> ClapApp<'static, 'static> {
                         .long("folder")
                         .value_name("PATH")
                         .long_help("Path where variables with type \"File\" will be stored. Files will be created with format <VARIABLE_NAME>.var. [default: $PWD/.env.<ENVIRONMENT>]"),
-                    Arg::with_name("all")
-                        .long("all")
-                        .short("a")
-                        .long_help("List all varibles (without this option, only 20 variables are showed). This option ovewrites --page and --per-page options."),
-                    Arg::with_name("page")
-                        .long("page")
-                        .value_name("PAGE")
-                        .long_help("Page number.\r\n(See https://docs.gitlab.com/ee/api/README.html#offset-based-pagination).")
-                        .default_value("1"),
                     Arg::with_name("per-page")
                         .long("per-page")
                         .value_name("PER_PAGE")
-                        .long_help("Number of items to list per page.\r\n(See https://docs.gitlab.com/ee/api/README.html#offset-based-pagination).")
-                        .default_value("20"),
+                        .long_help("Number of items to bring per request.\r\n(See https://docs.gitlab.com/ee/api/README.html#offset-based-pagination).")
+                        .default_value("100"),
                     Arg::with_name("parallel")
                         .long("parallel")
                         .value_name("PARALLEL")

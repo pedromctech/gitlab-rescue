@@ -9,8 +9,8 @@ macro_rules! app_success {
 #[macro_export]
 macro_rules! app_info {
     ($($arg:tt)*) => ({
-        use ansi_term::Colour::Blue;
-        eprintln!("{} {}", Blue.paint("[INFO]"), format!($($arg)*))
+        use ansi_term::Colour::Cyan;
+        eprintln!("{} {}", Cyan.paint("[INFO]"), format!($($arg)*))
     })
 }
 
@@ -48,10 +48,7 @@ macro_rules! extract_token {
 /// Extract GitLab environment from clap args
 macro_rules! extract_environment {
     ($clap_args:expr) => {
-        match $clap_args.value_of("environment") {
-            Some("All") | None => "*".to_owned(),
-            Some(val) => val.to_string(),
-        }
+        $clap_args.value_of("environment").map_or_else(|| "All".to_owned(), |v| v.to_owned())
     };
 }
 

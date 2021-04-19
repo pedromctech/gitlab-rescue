@@ -15,16 +15,35 @@ pub struct GitLabProject {
     pub variables: Vec<GitLabVariable>,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize)]
+pub enum GitLabVariableType {
+    #[serde(rename = "env_var")]
+    EnvVar,
+    #[serde(rename = "file")]
+    File,
+}
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct GitLabVariable {
     /// The type of a variable. Available types are: env_var and file
-    pub variable_type: String,
+    pub variable_type: GitLabVariableType,
     /// The key of the variable
     pub key: String,
     /// The value of a variable
     pub value: String,
     /// Variable's environment
     pub environment_scope: String,
+}
+
+impl GitLabVariable {
+    fn clone_from_response(&self) -> GitLabVariable {
+        GitLabVariable {
+            environment_scope: if self.environment_scope == "*" { "All".to_owned() } else { self.environment_scope.clone() },
+            variable_type: self.variable_type,
+            key: self.key.clone(),
+            value: self.value.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -44,7 +63,7 @@ pub struct Pagination {
 pub trait GitLabApi {
     fn new(gitlab_api_url: String, gitlab_token: String) -> Self;
     /// Get a variable value from a specific GitLab project
-    fn get_from_project(&self, project: &str, name: &str, environment: &str) -> Result<GitLabVariable>;
+    fn get_from_project(&self, project: &str, name: &str, env: &str) -> Result<GitLabVariable>;
     /// Get a variable value from a specific GitLab group
     fn get_from_group(&self, group: &str, name: &str) -> Result<GitLabVariable>;
     /// List variables from a specific GitLab project
@@ -65,8 +84,8 @@ impl<'a> GitLabApi for GitLabApiV4 {
         }
     }
 
-    fn get_from_project(&self, project: &str, name: &str, environment: &str) -> Result<GitLabVariable> {
-        self.get(&format!("projects/{}/variables/{}?filter[environment_scope]={}", project, name, environment))
+    fn get_from_project(&self, project: &str, name: &str, env: &str) -> Result<GitLabVariable> {
+        self.get(&format!("projects/{}/variables/{}?filter[environment_scope]={}", project, name, if env == "All" { "*" } else { env }))
     }
 
     fn get_from_group(&self, group: &str, name: &str) -> Result<GitLabVariable> {
@@ -86,7 +105,7 @@ impl GitLabApiV4 {
             .header("PRIVATE-TOKEN", &self.token)
             .send()?
             .error_for_status()?
-            .json()?)
+            .json::<GitLabVariable>()?.clone_from_response())
     }
 
     fn list(&self, endpoint: &str) -> Result<(Vec<GitLabVariable>, Pagination)> {
@@ -97,20 +116,20 @@ impl GitLabApiV4 {
             .send()?
             .error_for_status()?;
         let pag = Pagination {
-            x_next_page: self.get_pagination_header(&res, "x-next-page")?,
-            x_page: self.get_pagination_header(&res, "x-page")?,
-            x_per_page: self.get_pagination_header(&res, "x-per-page")?,
-            x_total: self.get_pagination_header(&res, "x-total")?,
-            x_total_pages: self.get_pagination_header(&res, "x-total-pages")?,
+            x_next_page: get_pagination_header(&res, "x-next-page")?,
+            x_page: get_pagination_header(&res, "x-page")?,
+            x_per_page: get_pagination_header(&res, "x-per-page")?,
+            x_total: get_pagination_header(&res, "x-total")?,
+            x_total_pages: get_pagination_header(&res, "x-total-pages")?,
         };
-        Ok((res.json()?, pag))
+        Ok((res.json::<Vec<GitLabVariable>>()?.iter().map(|v| v.clone_from_response()).collect(), pag))
     }
+}
 
-    fn get_pagination_header(&self, res: &BlockingResponse, header: &str) -> Result<usize> {
-        match res.headers().get(header) {
-            Some(h) if h.to_str()?.is_empty() => Ok(0),
-            Some(h) if h.to_str()?.parse::<usize>().is_ok() => Ok(h.to_str()?.parse::<usize>().unwrap()),
-            _ => Err(Cli(format!("Header {} not valid in GitLab response", header))),
-        }
+fn get_pagination_header(res: &BlockingResponse, header: &str) -> Result<usize> {
+    match res.headers().get(header) {
+        Some(h) if h.to_str()?.is_empty() => Ok(0),
+        Some(h) if h.to_str()?.parse::<usize>().is_ok() => Ok(h.to_str()?.parse::<usize>().unwrap()),
+        _ => Err(Cli(format!("Header {} not valid in GitLab response", header))),
     }
 }
