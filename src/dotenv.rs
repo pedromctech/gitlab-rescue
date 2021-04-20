@@ -205,10 +205,7 @@ fn create_files(folder: String, variables: Vec<GitLabVariable>) -> IO<Result<()>
             Err(AppError::from(e))
         }
     })
-    .flat_map(|res: Result<Vec<(String, Vec<u8>)>>| match res {
-        Ok(list) => list.into_iter().fold(IO::unit(|| Ok(())), |_, (file, content)| write_file(file, content)),
-        Err(e) => IO::unit(|| Err(e)),
-    })
+    .map(|res| res.map(|list| list.into_iter().flat_map(|(f, c)| File::create(f).map(|mut file| file.write_all(&c))?).collect()))
 }
 
 /// Generates a list of commands for exporting all variables in user's shell
