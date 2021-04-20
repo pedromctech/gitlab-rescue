@@ -108,9 +108,6 @@ pub fn app() -> ClapApp<'static, 'static> {
                         .long("parallel")
                         .value_name("PARALLEL")
                         .long_help("Number of threads for GitLab API requests."),
-                    Arg::with_name("with-group-vars")
-                        .long("with-group-vars")
-                        .long_help("Export group variables if project belongs to a group."),
                 ]),
         )
 }
