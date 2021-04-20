@@ -3,26 +3,27 @@ use crate::app_error::{AppError::Cli, Result};
 use reqwest::blocking::{Client as BlockingClient, Response as BlockingResponse};
 use serde::Deserialize;
 
+/// GitLab project infomation
 #[derive(Clone, Debug)]
 pub struct GitLabProject {
     /// GitLab project name
     pub name: String,
-    /// Instance URL of project
-    pub url: String,
-    /// Token allowed in project
-    pub token: String,
     /// Project's variables
     pub variables: Vec<GitLabVariable>,
 }
 
+/// GitLab variable type
 #[derive(Clone, Copy, Debug, Deserialize)]
 pub enum GitLabVariableType {
     #[serde(rename = "env_var")]
+    /// Environment variable type
     EnvVar,
     #[serde(rename = "file")]
+    /// File type
     File,
 }
 
+/// GitLab variable information
 #[derive(Clone, Debug, Deserialize)]
 pub struct GitLabVariable {
     /// The type of a variable. Available types are: env_var and file
@@ -36,9 +37,14 @@ pub struct GitLabVariable {
 }
 
 impl GitLabVariable {
+    /// Clone [GitLabVariable](struct@GitLabVariable) object parsing `environment_scope` attribute
     fn clone_from_response(&self) -> GitLabVariable {
         GitLabVariable {
-            environment_scope: if self.environment_scope == "*" { "All".to_owned() } else { self.environment_scope.clone() },
+            environment_scope: if self.environment_scope == "*" {
+                "All".to_owned()
+            } else {
+                self.environment_scope.clone()
+            },
             variable_type: self.variable_type,
             key: self.key.clone(),
             value: self.value.clone(),
@@ -61,6 +67,7 @@ pub struct Pagination {
 }
 
 pub trait GitLabApi {
+    /// Returns a new [GitLabApi](trait@GitLabApi) object
     fn new(gitlab_api_url: String, gitlab_token: String) -> Self;
     /// Get a variable value from a specific GitLab project
     fn get_from_project(&self, project: &str, name: &str, env: &str) -> Result<GitLabVariable>;
@@ -70,6 +77,7 @@ pub trait GitLabApi {
     fn list_from_project(&self, project: &str, page: usize, per_page: usize) -> Result<(Vec<GitLabVariable>, Pagination)>;
 }
 
+/// Implementation of [GitLabApi](trait@GitLabApi) v4
 #[derive(Clone, Debug)]
 pub struct GitLabApiV4 {
     url: String,
@@ -85,7 +93,12 @@ impl<'a> GitLabApi for GitLabApiV4 {
     }
 
     fn get_from_project(&self, project: &str, name: &str, env: &str) -> Result<GitLabVariable> {
-        self.get(&format!("projects/{}/variables/{}?filter[environment_scope]={}", project, name, if env == "All" { "*" } else { env }))
+        self.get(&format!(
+            "projects/{}/variables/{}?filter[environment_scope]={}",
+            project,
+            name,
+            if env == "All" { "*" } else { env }
+        ))
     }
 
     fn get_from_group(&self, group: &str, name: &str) -> Result<GitLabVariable> {
@@ -98,6 +111,12 @@ impl<'a> GitLabApi for GitLabApiV4 {
 }
 
 impl GitLabApiV4 {
+    /// Return a [GitLabVariable](struct@GitLabVariable) object with variable information from GitLabAPI
+    ///
+    /// # Arguments
+    ///
+    /// * `endpoint` - GitLab API endpoint to consume
+    ///
     fn get(&self, endpoint: &str) -> Result<GitLabVariable> {
         Ok(BlockingClient::builder()
             .build()?
@@ -105,9 +124,16 @@ impl GitLabApiV4 {
             .header("PRIVATE-TOKEN", &self.token)
             .send()?
             .error_for_status()?
-            .json::<GitLabVariable>()?.clone_from_response())
+            .json::<GitLabVariable>()?
+            .clone_from_response())
     }
 
+    /// Return a list of [GitLabVariable](struct@GitLabVariable) objects from GitLabAPI
+    ///
+    /// # Arguments
+    ///
+    /// * `endpoint` - GitLab API endpoint to consume
+    ///
     fn list(&self, endpoint: &str) -> Result<(Vec<GitLabVariable>, Pagination)> {
         let res = BlockingClient::builder()
             .build()?
@@ -126,6 +152,13 @@ impl GitLabApiV4 {
     }
 }
 
+/// Return numeric header from GitLab API response
+///
+/// # Arguments
+///
+/// * `res`    - Reference of BlockingResponse object
+/// * `header` - Header to extract
+///
 fn get_pagination_header(res: &BlockingResponse, header: &str) -> Result<usize> {
     match res.headers().get(header) {
         Some(h) if h.to_str()?.is_empty() => Ok(0),

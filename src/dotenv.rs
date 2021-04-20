@@ -1,56 +1,20 @@
-use crate::api_client::DEFAULT_ENVIRONMENT;
-use crate::api_client::MAX_PER_PAGE;
-use crate::app_error::AppError;
-use crate::gitlab_api::GitLabProject;
-use crate::gitlab_api::GitLabVariableType;
-use crate::gitlab_api::Pagination;
+use crate::api_client::{api_client, DEFAULT_ENVIRONMENT};
+use crate::app_error::{AppError, Result};
+use crate::gitlab_api::{GitLabApi, GitLabProject, GitLabVariable, GitLabVariableType};
+use crate::shell_types::ShellType;
 use crate::IO;
-use crate::{
-    api_client::api_client,
-    app_error::{AppError::InvalidInput, Result},
-    app_info, app_warning, ceil_div, extract_environment, extract_token, extract_url, floor_div,
-    gitlab_api::{GitLabApi, GitLabVariable},
-    Performable,
-};
-use ansi_term::Colour::Yellow;
+use crate::{app_info, app_warning, extract_token, extract_url, Performable};
 use clap::ArgMatches;
-use std::collections::HashMap;
 use std::convert::From;
 use std::env;
-use std::fmt::{Display, Formatter, Result as FmtResult};
-use std::fs;
-use std::fs::File;
 use std::io::Write;
-use std::path::Path;
 use std::rc::Rc;
 use std::sync::mpsc::channel;
+use std::{fs, fs::File};
 use threadpool::ThreadPool;
 use urlencoding::encode;
 
-#[derive(Clone, Copy, Debug)]
-pub enum ShellType {
-    Posix,
-    Fish,
-}
-
-impl Display for ShellType {
-    fn fmt(&self, f: &mut Formatter) -> FmtResult {
-        match self {
-            ShellType::Posix => write!(f, "{}", Yellow.bold().paint("POSIX")),
-            ShellType::Fish => write!(f, "{}", Yellow.bold().paint("FISH")),
-        }
-    }
-}
-
-impl ShellType {
-    fn export_command(&self, variable: String, value: String) -> String {
-        match self {
-            ShellType::Posix => format!("export {}=\"{}\"", variable, value),
-            ShellType::Fish => format!("set -gx {} \"{}\"", variable, value),
-        }
-    }
-}
-
+/// Arguments for `dotenv` command
 #[derive(Clone, Debug)]
 pub struct DotEnvCommand {
     /// Project ID or URL-encoded NAMESPACE/PROJECT_NAME
@@ -69,6 +33,10 @@ pub struct DotEnvCommand {
     with_group_vars: bool,
     /// Parallelism
     parallel: usize,
+    /// GitLab instance URL
+    url: String,
+    /// Token to connect to GitLab instance API
+    token: String,
 }
 
 impl From<&ArgMatches<'_>> for DotEnvCommand {
@@ -77,8 +45,6 @@ impl From<&ArgMatches<'_>> for DotEnvCommand {
         DotEnvCommand {
             gitlab_project: GitLabProject {
                 name: encode(argm.value_of("GITLAB_PROJECT").unwrap()),
-                url: extract_url!(argm),
-                token: extract_token!(argm),
                 variables: vec![],
             },
             environment: get_env_from_args(argm),
@@ -88,82 +54,102 @@ impl From<&ArgMatches<'_>> for DotEnvCommand {
             per_page: numeric_param_from_args(argm, "per-page", 50),
             with_group_vars: argm.is_present("with-group-vars"),
             parallel: numeric_param_from_args(argm, "parallel", num_cpus::get()),
+            url: extract_url!(argm),
+            token: extract_token!(argm),
         }
     }
-}
-
-fn get_env_from_args(args: &clap::ArgMatches) -> String {
-    args.value_of("environment").map_or_else(|| DEFAULT_ENVIRONMENT.to_owned(), |v| v.to_owned())
-}
-
-fn numeric_param_from_args(argm: &clap::ArgMatches, param: &str, default: usize) -> usize {
-    argm.value_of(param)
-        .map_or_else(|| default, |v| if v.parse::<usize>().is_ok() { v.parse::<usize>().unwrap() } else { default })
 }
 
 impl Performable for DotEnvCommand {
     fn get_action(mut self) -> IO<Result<()>> {
         IO::unit(move || {
             app_info!("Getting variables from project {}...", self.gitlab_project.name);
-            self.gitlab_project.variables.extend(get_vars(&self)?);
+            self.gitlab_project.variables.extend(self.get_vars()?);
             Ok(Rc::clone(&Rc::new(self)))
         })
         .flat_map(|res: Result<Rc<DotEnvCommand>>| {
             app_info!("Creating files for variables of type File...");
             match res {
-                Ok(ref cmd) => create_files(cmd.folder.clone(), cmd.gitlab_project.variables.clone()).map(|_| res),
+                Ok(ref cmd) => create_files(cmd.folder.clone(), cmd.gitlab_project.variables.clone()).map(|r| r.and_then(|_| res).or_else(|e| Err(e))),
                 Err(e) => IO::unit(|| Err(e)),
             }
         })
-        .map(|res: Result<Rc<DotEnvCommand>>| {
-            app_info!("Creating dotenv command list...");
-            res.map(
-                |cmd| match (generate_commands(cmd.shell, cmd.gitlab_project.variables.clone(), cmd.folder.clone()), &cmd.output_file) {
-                    (list, Some(f)) => write_file(f.to_string(), bytes_from_list(&list)).unwrap_or(list.into_iter().for_each(|c| println!("{}", c))),
-                    (list, None) => list.into_iter().for_each(|c| println!("{}", c)),
-                },
-            )
+        .flat_map(|res: Result<Rc<DotEnvCommand>>| match res {
+            Ok(ref cmd) => {
+                app_info!("Creating dotenv command list...");
+                match (generate_commands(cmd.shell, &cmd.gitlab_project.variables, &cmd.folder), &cmd.output_file) {
+                    (list, Some(f)) => write_file(f.to_string(), list.join("\n").as_bytes().to_vec()).map(|r| {
+                        r.or_else(|e| {
+                            app_warning!("Error creating output file ({}). Printing commands in STDOUT...", e);
+                            Ok(list.into_iter().for_each(|c| println!("{}", c)))
+                        })
+                    }),
+                    (list, None) => IO::unit(|| Ok(list.into_iter().for_each(|c| println!("{}", c)))),
+                }
+            }
+            Err(e) => IO::unit(|| Err(e)),
         })
     }
 }
 
-fn bytes_from_list(list: &Vec<String>) -> &'static [u8] {
-    todo!();
+impl DotEnvCommand {
+    /// Returns a list with all `[project]` variables from GitLab API.
+    fn get_vars(&self) -> Result<Vec<GitLabVariable>> {
+        api_client(&self.url, &self.token)
+            .list_from_project(&self.gitlab_project.name, 1, self.per_page)
+            .and_then(|(list, pag)| match list.len() < pag.x_total {
+                true => Ok([list, self.get_remaining_vars(num_requests(pag.x_total, self.per_page))?].concat()),
+                _ => Ok(list),
+            })
+            .map(|list| {
+                list.into_iter()
+                    .filter(|v| v.environment_scope == DEFAULT_ENVIRONMENT || v.environment_scope == self.environment)
+                    .collect()
+            })
+    }
+
+    /// Returns a list with remaining variables that could not be obtained in the first request
+    ///
+    /// # Arguments
+    ///
+    /// * `requests` - Number of requests to make to obtain the remaining variables
+    ///
+    fn get_remaining_vars(&self, requests: usize) -> Result<Vec<GitLabVariable>> {
+        let pool = ThreadPool::new(self.parallel);
+        let (tx, rx) = channel();
+        (0..requests)
+            .fold(rx, |acc, i| {
+                let (tx, project, url, token, pp) = (tx.clone(), self.gitlab_project.clone(), self.url.clone(), self.token.clone(), self.per_page);
+                pool.execute(move || tx.send(api_client(&url, &token).list_from_project(&project.name, i + 2, pp)).expect("Thread Error"));
+                acc
+            })
+            .iter()
+            .take(requests)
+            .fold(Ok(vec![]), |a: Result<Vec<GitLabVariable>>, res| a.and_then(|acc| Ok([acc, res.map(|(l, _)| l)?].concat())))
+    }
 }
 
-fn get_vars(cmd: &DotEnvCommand) -> Result<Vec<GitLabVariable>> {
-    api_client(&cmd.gitlab_project.url, &cmd.gitlab_project.token)
-        .list_from_project(&cmd.gitlab_project.name, 1, cmd.per_page)
-        .and_then(|(list, pag)| match list.len() < pag.x_total {
-            true => Ok([
-                list,
-                get_remaining_vars(&cmd.gitlab_project, num_requests(pag.x_total, cmd.per_page), cmd.per_page, cmd.parallel)?,
-            ]
-            .concat()),
-            _ => Ok(list),
-        })
-        .map(|list| {
-            list.into_iter()
-                .filter(|v| v.environment_scope == DEFAULT_ENVIRONMENT || v.environment_scope == cmd.environment)
-                .collect()
-        })
+/// Returns environment name from [ArgMatches](struct@clap::ArgMatches) object
+///
+/// # Arguments
+///
+/// * `args` - Reference of [ArgMatches](ArgMatches) object
+///
+fn get_env_from_args(args: &clap::ArgMatches) -> String {
+    args.value_of("environment").map_or_else(|| DEFAULT_ENVIRONMENT.to_owned(), |v| v.to_owned())
 }
 
-fn get_remaining_vars(project: &GitLabProject, requests: usize, per_request: usize, parallel: usize) -> Result<Vec<GitLabVariable>> {
-    let pool = ThreadPool::new(parallel);
-    let (tx, rx) = channel();
-    (0..requests)
-        .fold(rx, |acc, i| {
-            let (tx, project) = (tx.clone(), project.clone());
-            pool.execute(move || {
-                tx.send(api_client(&project.url, &project.token).list_from_project(&project.name, i + 2, per_request))
-                    .expect("Thread Error")
-            });
-            acc
-        })
-        .iter()
-        .take(requests)
-        .fold(Ok(vec![]), |a: Result<Vec<GitLabVariable>>, res| a.and_then(|acc| Ok([acc, res.map(|(l, _)| l)?].concat())))
+/// Returns param of type `usize` from [ArgMatches](struct@clap::ArgMatches) object
+///
+/// # Arguments
+///
+/// * `args`    - Reference of [ArgMatches](ArgMatches) object
+/// * `param`   - Name of parameter to extract
+/// * `default` - If parameter is not present, return `default`
+///
+fn numeric_param_from_args(argm: &clap::ArgMatches, param: &str, default: usize) -> usize {
+    argm.value_of(param)
+        .map_or_else(|| default, |v| if v.parse::<usize>().is_ok() { v.parse::<usize>().unwrap() } else { default })
 }
 
 /// Calculate number of needed requests to get remaining variables. Number of requests is 1 if number of
@@ -181,25 +167,59 @@ fn num_requests(total: usize, per_request: usize) -> usize {
     }
 }
 
-fn write_file(file: String, content: &[u8]) -> std::io::Result<()> {
-    File::create(&file)
-        .map(|mut f| f.write_all(content))
-        .map(|_| app_info!("File {} created successfully", file))
-}
-
-fn create_files(folder: String, variables: Vec<GitLabVariable>) -> IO<std::result::Result<(), std::io::Error>> {
+/// Returns an IO object that creates a file and write content to it.
+///
+/// # Example
+///
+/// ```rust
+/// let content = "This is the content";
+/// let action = write_file("/home/me/my-file.txt".to_owned(), content.as_bytes().to_vec()); // Here nothing happens
+/// action.apply(); // This creates the file
+/// ```
+///
+fn write_file(file: String, content: Vec<u8>) -> IO<Result<()>> {
     IO::unit(move || {
-        fs::create_dir_all(folder.clone()).and_then(|_| {
-            variables
-                .iter()
-                .filter(|v| matches!(v.variable_type, GitLabVariableType::File))
-                .map(|v| (format!("{}/{}.var", folder, v.key), v.value.as_bytes()))
-                .fold(Ok(()), |acc, (file, content)| acc.and(write_file(file, content)))
-        })
+        File::create(&file)
+            .map(|mut f| f.write_all(&content))
+            .map(|_| app_info!("File {} created successfully", file))
+            .or_else(|e| Err(AppError::from(e)))
     })
 }
 
-fn generate_commands(shell: ShellType, variables: Vec<GitLabVariable>, folder: String) -> Vec<String> {
+/// Returns an IO object that creates files for GitLab variables of type "File"
+///
+/// # Arguments
+///
+/// * `folder` - Folder where files will be created
+/// * `variables` - List of GitLab variables
+///
+fn create_files(folder: String, variables: Vec<GitLabVariable>) -> IO<Result<()>> {
+    IO::unit(move || match fs::create_dir_all(folder.clone()) {
+        Ok(_) => Ok(variables
+            .iter()
+            .filter(|v| matches!(v.variable_type, GitLabVariableType::File))
+            .map(|v| (format!("{}/{}.var", folder, v.key), v.value.as_bytes().to_vec()))
+            .collect::<Vec<(String, Vec<u8>)>>()),
+        Err(e) => {
+            app_warning!("Folder {} could not be created", folder);
+            Err(AppError::from(e))
+        }
+    })
+    .flat_map(|res: Result<Vec<(String, Vec<u8>)>>| match res {
+        Ok(list) => list.into_iter().fold(IO::unit(|| Ok(())), |_, (file, content)| write_file(file, content)),
+        Err(e) => IO::unit(|| Err(e)),
+    })
+}
+
+/// Generates a list of commands for exporting all variables in user's shell
+///
+/// # Arguments
+///
+/// * `shell` - [ShellType](enum@ShellType)
+/// * `variables` - List of GitLab variables
+/// * `folder` - Folder where variables of type "File" are located
+///
+fn generate_commands(shell: ShellType, variables: &Vec<GitLabVariable>, folder: &String) -> Vec<String> {
     variables.iter().fold(vec![], |mut acc, v| {
         acc.push(shell.export_command(
             v.key.clone(),

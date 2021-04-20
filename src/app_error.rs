@@ -1,10 +1,9 @@
 use ansi_term::Colour::Red;
-use std::{
-    error::Error,
-    fmt::{Display, Formatter, Result as FmtResult},
-    process,
-};
+use std::error::Error;
+use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::process;
 
+/// Specification for application errors
 #[derive(Clone, Debug)]
 pub enum AppError {
     InvalidInput(String),
@@ -48,9 +47,16 @@ impl Display for AppError {
     }
 }
 
+/// Print error in STDERR and exit with error code (1)
+///
+/// # Arguments
+///
+/// * `err` - [AppError](enum@AppError) object
+///
 pub fn handle_error(err: AppError) {
     eprintln!("{}", err);
     process::exit(1);
 }
 
+/// Result is a type that represents either success ([Ok]) or failure ([AppError]).
 pub type Result<T> = std::result::Result<T, AppError>;

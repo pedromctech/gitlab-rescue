@@ -9,10 +9,13 @@ pub mod dotenv;
 pub mod get_variable;
 mod gitlab_api;
 pub mod io;
+pub mod shell_types;
 
-use crate::io::IO;
 use crate::app_error::Result;
+use crate::io::IO;
 
+/// Trait for all `gitlab-rescue` commands
 pub trait Performable {
+    /// Get action that contains a IO object with an effect
     fn get_action(self) -> IO<Result<()>>;
 }

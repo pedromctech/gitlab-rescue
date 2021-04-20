@@ -1,15 +1,14 @@
-use crate::api_client::api_client;
-use crate::api_client::DEFAULT_ENVIRONMENT;
+use crate::api_client::{api_client, DEFAULT_ENVIRONMENT};
 use crate::app_error::Result;
 use crate::gitlab_api::GitLabApi;
 use crate::io::IO;
-use crate::Performable;
-use crate::{app_info, app_success, extract_environment, extract_token, extract_url};
+use crate::{app_info, app_success, extract_token, extract_url, Performable};
 use clap::ArgMatches;
 use std::convert::From;
 use std::env;
 use urlencoding::encode;
 
+/// Arguments for `get` command
 #[derive(Debug, Clone)]
 pub struct GetVariableCommand {
     /// Variable name
@@ -42,22 +41,6 @@ impl From<&ArgMatches<'_>> for GetVariableCommand {
     }
 }
 
-impl GetVariableCommand {
-    fn get_variable_from_group(&self) -> Result<String> {
-        api_client(&self.url, &self.token).get_from_group(self.gitlab_group.as_ref().unwrap(), &self.name).map(|g| g.value)
-    }
-
-    fn get_variable_from_project(&self, p: &str) -> Result<String> {
-        let api = api_client(&self.url, &self.token);
-        api.get_from_project(p, &self.name, &self.environment)
-            .map(|g| g.value)
-            .or_else(|e| match self.environment != DEFAULT_ENVIRONMENT && self.from_all_if_missing {
-                true => api.get_from_project(p, &self.name, DEFAULT_ENVIRONMENT).map(|g| g.value),
-                _ => Err(e),
-            })
-    }
-}
-
 impl Performable for GetVariableCommand {
     fn get_action(self) -> IO<Result<()>> {
         IO::unit(move || {
@@ -76,5 +59,26 @@ impl Performable for GetVariableCommand {
                 println!("{}", v)
             })
         })
+    }
+}
+
+impl GetVariableCommand {
+    /// Returns the variable value obtained from GitLab API in specified `[group]`
+    fn get_variable_from_group(&self) -> Result<String> {
+        api_client(&self.url, &self.token)
+            .get_from_group(self.gitlab_group.as_ref().unwrap(), &self.name)
+            .map(|g| g.value)
+    }
+
+    /// Returns the variable value obtained from GitLab API in specified `[project]`
+    fn get_variable_from_project(&self, p: &str) -> Result<String> {
+        let api = api_client(&self.url, &self.token);
+        api_client(&self.url, &self.token)
+            .get_from_project(p, &self.name, &self.environment)
+            .map(|g| g.value)
+            .or_else(|e| match self.environment != DEFAULT_ENVIRONMENT && self.from_all_if_missing {
+                true => api.get_from_project(p, &self.name, DEFAULT_ENVIRONMENT).map(|g| g.value),
+                _ => Err(e),
+            })
     }
 }

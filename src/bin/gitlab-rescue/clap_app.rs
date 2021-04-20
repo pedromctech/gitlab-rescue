@@ -1,5 +1,6 @@
 use clap::{crate_authors, crate_version, App as ClapApp, Arg, SubCommand};
 
+/// Returns an arg object with `--environment` flag configuration
 fn environment_arg() -> Arg<'static, 'static> {
     Arg::with_name("environment")
         .long("environment")
@@ -9,6 +10,7 @@ fn environment_arg() -> Arg<'static, 'static> {
         .default_value("All")
 }
 
+/// Returns an array with `--token` and `--url` flags configuration
 fn gitlab_instance_args() -> [Arg<'static, 'static>; 2] {
     [
         Arg::with_name("token")
@@ -24,6 +26,7 @@ fn gitlab_instance_args() -> [Arg<'static, 'static>; 2] {
     ]
 }
 
+/// Returns an array with `--project` and `--group` flags configuration
 fn project_and_group_args() -> [Arg<'static, 'static>; 2] {
     [
         Arg::with_name("project")
@@ -43,6 +46,7 @@ fn project_and_group_args() -> [Arg<'static, 'static>; 2] {
     ]
 }
 
+/// Returns the `ClapApp` object with all CLI structure
 pub fn app() -> ClapApp<'static, 'static> {
     ClapApp::new("gitlab-rescue")
         .version(crate_version!())

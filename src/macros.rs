@@ -26,10 +26,9 @@ macro_rules! app_warning {
 /// Extract GITLAB_URL from clap args
 macro_rules! extract_url {
     ($clap_args:expr) => {
-        match $clap_args.value_of("url") {
-            Some(s) => s.to_owned(),
-            None => env::var("GITLAB_URL").unwrap_or(String::from("https://gitlab.com")),
-        }
+        $clap_args
+            .value_of("url")
+            .map_or_else(|| env::var("GITLAB_URL").unwrap_or(String::from("https://gitlab.com")), |s| s.to_owned())
     };
 }
 
@@ -37,10 +36,9 @@ macro_rules! extract_url {
 /// Extract GITLAB_API_TOKEN from clap args
 macro_rules! extract_token {
     ($clap_args:expr) => {
-        match $clap_args.value_of("token") {
-            Some(s) => s.to_owned(),
-            None => env::var("GITLAB_API_TOKEN").unwrap_or(String::new()),
-        }
+        $clap_args
+            .value_of("token")
+            .map_or_else(|| env::var("GITLAB_API_TOKEN").unwrap_or(String::new()), |s| s.to_owned())
     };
 }
 
@@ -49,21 +47,5 @@ macro_rules! extract_token {
 macro_rules! extract_environment {
     ($clap_args:expr) => {
         $clap_args.value_of("environment").map_or_else(|| "All".to_owned(), |v| v.to_owned())
-    };
-}
-
-#[macro_export]
-/// Ceil division between two numbers
-macro_rules! ceil_div {
-    ($dividend:expr, $divider:expr) => {
-        ($dividend as f64 / $divider as f64).ceil() as usize
-    };
-}
-
-#[macro_export]
-/// Floor division between two numbers
-macro_rules! floor_div {
-    ($dividend:expr, $divider:expr) => {
-        ($dividend as f64 / $divider as f64).floor() as usize
     };
 }
