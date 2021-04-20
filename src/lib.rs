@@ -1,13 +1,21 @@
 //! `gitlab-rescue` is a CLI tool for getting and importing GitLab CI/CD variables from a project (Read only)
 //!
-pub mod api_client;
+
+mod macros;
+
+mod api_client;
 pub mod app_error;
-pub mod app_std;
+pub mod dotenv;
 pub mod get_variable;
-pub mod gitlab;
+mod gitlab_api;
+pub mod io;
+pub mod shell_types;
 
 use crate::app_error::Result;
+use crate::io::IO;
 
+/// Trait for all `gitlab-rescue` commands
 pub trait Performable {
-    fn perform(&self, name: &str) -> Result<String>;
+    /// Get action that contains a IO object with an effect
+    fn get_action(self) -> IO<Result<()>>;
 }

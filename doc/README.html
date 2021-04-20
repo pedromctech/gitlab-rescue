@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <title>gitlab-rescue (WIP)</title>
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+    <h1 class="title">gitlab-rescue (WIP)</h1>
+    <nav id="TOC"><ul>
+<li><a href="#gitlab-rescue-get">0.1 gitlab-rescue get</a><ul></ul></li>
+<li><a href="#gitlab-rescue-dotenv">0.2 gitlab-rescue dotenv</a><ul></ul></li>
+<li><a href="#examples">0.3 Examples</a><ul>
+<li><a href="#get-a-variable">0.3.1 Get a variable</a><ul></ul></li>
+<li><a href="#creating-a-dotenv-file">0.3.2 Creating a dotenv file</a><ul></ul></li></ul></li></ul></nav><p>CLI tool for getting and importing GitLab CI/CD variables from a project (Read only).</p>
+<pre><code class="language-text">gitlab-rescue 0.1.0
+CLI tool for getting and importing GitLab CI/CD variables from a project (Read only)
+
+USAGE:
+    gitlab-rescue [SUBCOMMAND]
+
+FLAGS:
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+
+SUBCOMMANDS:
+    dotenv    Export project variables in the current shell (by default first 20 variables)
+    get       Print variable in STDOUT
+    help      Prints this message or the help of the given subcommand(s)
+</code></pre>
+<h2 id="gitlab-rescue-get" class="section-header"><a href="#gitlab-rescue-get">0.1 gitlab-rescue get</a></h2>
+<pre><code class="language-text">gitlab-rescue-get 0.1.0
+Pedro Miranda &lt;pedrodotmc@gmail.com&gt;
+Print variable in STDOUT
+
+USAGE:
+    gitlab-rescue get [FLAGS] [OPTIONS] &lt;VARIABLE_NAME&gt; --group &lt;GITLAB_GROUP&gt; --project &lt;GITLAB_PROJECT&gt;
+
+FLAGS:
+        --from-all-if-missing
+            If variable(s) is(are) not found in defined environment (-e option), try searching in &quot;All&quot; environment.
+
+    -h, --help
+            Prints help information
+
+    -V, --version
+            Prints version information
+
+OPTIONS:
+    -e, --environment &lt;ENVIRONMENT&gt;
+            Name of GitLab CI/CD environment. [default: All]
+
+    -g, --group &lt;GITLAB_GROUP&gt;
+            The ID of a group or URL-encoded path of the group. This should not be used with --project option.
+
+    -p, --project &lt;GITLAB_PROJECT&gt;
+            The ID of a project or URL-encoded NAMESPACE/PROJECT_NAME of the project. This should not be used with
+            --group option.
+    -t, --token &lt;GITLAB_API_TOKEN&gt;
+            A valid GitLab API token. Alternatively, you can export GITLAB_API_TOKEN variable.
+
+    -u, --url &lt;GITLAB_URL&gt;
+            URL of GitLab API. [default: https://gitlab.com]. Alternatively, you can export GITLAB_URL variable.
+
+ARGS:
+    &lt;VARIABLE_NAME&gt;
+            Name of GitLab CI/CD variable.
+</code></pre>
+<h2 id="gitlab-rescue-dotenv" class="section-header"><a href="#gitlab-rescue-dotenv">0.2 gitlab-rescue dotenv</a></h2>
+<pre><code class="language-text">gitlab-rescue-dotenv 0.1.0
+Export project variables in the current shell (by default first 20 variables)
+
+USAGE:
+    gitlab-rescue dotenv [OPTIONS] &lt;GITLAB_PROJECT&gt;
+
+FLAGS:
+    -h, --help
+            Prints help information
+
+    -V, --version
+            Prints version information
+
+OPTIONS:
+    -e, --environment &lt;ENVIRONMENT&gt;
+            Name of GitLab CI/CD environment. [default: All]
+
+        --folder &lt;PATH&gt;
+            Path where variables with type &quot;File&quot; will be stored. Files will be created with format &lt;VARIABLE_NAME&gt;.var.
+            [default: $PWD/.env.&lt;ENVIRONMENT&gt;]
+    -o, --output &lt;OUTPUT_FILE&gt;
+            Write dotenv to a file instead of stdout.
+
+        --parallel &lt;PARALLEL&gt;
+            Number of threads for GitLab API requests.
+
+        --per-page &lt;PER_PAGE&gt;
+            Number of items to bring per request.
+            (See https://docs.gitlab.com/ee/api/README.html#offset-based-pagination). [default: 100]
+    -s, --shell &lt;SHELL&gt;
+            Generate dotenv for this shell type. Supported shells are: bash, zsh and fish. [default: bash]  [possible
+            values: bash, zsh, fish]
+    -t, --token &lt;GITLAB_API_TOKEN&gt;
+            A valid GitLab API token. Alternatively, you can export GITLAB_API_TOKEN variable.
+
+    -u, --url &lt;GITLAB_URL&gt;
+            URL of GitLab API. [default: https://gitlab.com]. Alternatively, you can export GITLAB_URL variable.
+
+ARGS:
+    &lt;GITLAB_PROJECT&gt;
+            The ID of a project or URL-encoded NAMESPACE/PROJECT_NAME of the project.
+</code></pre>
+<h2 id="examples" class="section-header"><a href="#examples">0.3 Examples</a></h2><h3 id="get-a-variable" class="section-header"><a href="#get-a-variable">0.3.1 Get a variable</a></h3>
+<pre><code class="language-bash">$ gitlab-rescue get MY_VARIABLE -p my-project
+[INFO] Getting variable from project my-project...
+[SUCCESS] Variable MY_VARIABLE obtained successfully
+my-value
+
+# Or export variable
+$ export VARIABLE=$(gitlab-rescue get MY_VARIABLE -p my-project)
+[INFO] Getting variable from project my-project...
+[SUCCESS] Variable MY_VARIABLE obtained successfully
+$ echo $VARIABLE
+my-value
+</code></pre>
+<h3 id="creating-a-dotenv-file" class="section-header"><a href="#creating-a-dotenv-file">0.3.2 Creating a dotenv file</a></h3>
+<pre><code class="language-bash">$ gitlab-rescue dotenv my-project -o .env
+[INFO] Getting variables from project my-project...
+[INFO] Creating files for variables of type File...
+[INFO] Creating dotenv command list...
+[INFO] File .env created successfully
+$ cat .env
+export MY_VARIABLE_1=&quot;a-value&quot;
+export MY_VARIABLE_2=&quot;another-value&quot;
+export MY_FILE_VARIABLE=&quot;.env.All/MY_FILE_VARIABLE.var&quot;
+$ ls .env.All
+MY_FILE_VARIABLE.var
+</code></pre>
+
+    
+</body>
+</html>
