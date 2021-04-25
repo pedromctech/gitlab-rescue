@@ -6,7 +6,9 @@ impl<A: 'static> IO<A> {
     /// # Example
     ///
     /// ```rust
-    /// let my_io_object = IO::unit(|| println("This function is a side effect!"));
+    /// use gitlab_rescue::io::IO;
+    /// 
+    /// let my_io_object = IO::unit(|| println!("This function is a side effect!"));
     /// ```
     ///
     pub fn unit(a: impl FnOnce() -> A + 'static) -> IO<A> {
@@ -26,8 +28,9 @@ impl<A: 'static> IO<A> {
     /// # Example
     ///
     /// ```rust
-    /// let my_io_object = IO::unit(|| println("This function is a side effect!"));
-    /// my_io_object.map(|| println("This is another effect"));
+    /// use gitlab_rescue::io::IO;
+    /// 
+    /// let my_io_object = IO::unit(|| println!("This function is a side effect!")).map(|_| println!("This is another effect"));
     /// my_io_object.apply(); // This print both messages
     /// ```
     ///

@@ -12,7 +12,7 @@ pub const DEFAULT_ENVIRONMENT: &str = "All";
 /// # Example
 ///
 /// ```
-/// use crate::api_client::api_client;
+/// use gitlab_rescue::api_client::api_client;
 /// let api = api_client("https://gitlab.com", "A_GITLAB_TOKEN");
 /// ```
 pub fn api_client(url: &str, token: &str) -> impl GitLabApi + 'static {

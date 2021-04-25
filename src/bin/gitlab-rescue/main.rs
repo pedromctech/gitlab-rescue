@@ -1,7 +1,5 @@
-mod clap_app;
-
-use crate::clap_app::app;
 use gitlab_rescue::app_error::{handle_error, AppError::InvalidInput, Result};
+use gitlab_rescue::clap_app::app;
 use gitlab_rescue::dotenv::DotEnvCommand;
 use gitlab_rescue::get_variable::GetVariableCommand;
 use gitlab_rescue::io::IO;

@@ -3,9 +3,11 @@
 
 mod macros;
 
-mod api_client;
+pub mod api_client;
 pub mod app_error;
+pub mod clap_app;
 pub mod dotenv;
+pub mod gen;
 pub mod get_variable;
 mod gitlab_api;
 pub mod io;

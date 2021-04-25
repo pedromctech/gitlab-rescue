@@ -56,7 +56,7 @@ impl Performable for GetVariableCommand {
             })
             .map(|v| {
                 app_success!("Variable {} obtained successfully", self.name);
-                println!("{}", v)
+                print!("{}", v)
             })
         })
     }
