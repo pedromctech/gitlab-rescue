@@ -18,10 +18,10 @@ jobs:
       - name: Install rust toolchain (v${{ env.MIN_SUPPORTED_RUST_VERSION }})
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: ${{ env.MIN_SUPPORTED_RUST_VERSION }}
-          default: true
+          toolchain: nightly
+          override: true
           profile: minimal
-          components: clippy
+          components: rustfmt, clippy, tarpaulin
       - name: Run clippy
         uses: actions-rs/cargo@v1
         with:
@@ -31,7 +31,7 @@ jobs:
         uses: actions-rs/tarpaulin@v0.1
         with:
           version: "0.15.0"
-          args: "--doc --lib --tests --bin gitlab-rescue -o Html"
+          args: "--doc --lib --tests --bin gitlab-rescue"
       - name: Coveralls
         uses: coverallsapp/github-action@master
         with:
@@ -44,34 +44,23 @@ jobs:
       matrix:
         job:
           - os: ubuntu-18.04
-            target: aarch64-unknown-linux-gnu
-            cross: true
-          - os: ubuntu-18.04
-            target: i686-unknown-linux-gnu
-            cross: true
-          - os: ubuntu-18.04
-            target: i686-unknown-linux-musl
-            cross: true
-          - os: ubuntu-18.04
             target: x86_64-unknown-linux-gnu
-          - os: ubuntu-18.04
-            target: x86_64-unknown-linux-musl
-            cross: true
           - os: macos-10.15
             target: x86_64-apple-darwin
     steps:
       - name: Checkout source code
         uses: actions/checkout@v2
-      - name: Install prerequisites
+      - name: Needed packages by gitlab-rescue
         shell: bash
         run: |
           case ${{ matrix.job.target }} in
-            aarch64-unknown-linux-gnu) sudo apt-get -y update ; sudo apt-get -y install gcc-aarch64-linux-gnu ;;
+            x86_64-apple-darwin) brew install openssl ;;
+            *) sudo apt-get -y update ; sudo apt-get -y install libssl-dev ;;
           esac
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly
           target: ${{ matrix.job.target }}
           override: true
           profile: minimal
