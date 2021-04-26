@@ -1,10 +1,9 @@
 use ansi_term::Colour::Red;
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FmtResult};
-use std::process;
 
 /// Specification for application errors
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum AppError {
     InvalidInput(String),
     Api(String),
@@ -19,21 +18,9 @@ impl From<reqwest::Error> for AppError {
     }
 }
 
-impl From<reqwest::header::ToStrError> for AppError {
-    fn from(e: reqwest::header::ToStrError) -> AppError {
-        AppError::Api(format!("{}", e))
-    }
-}
-
 impl From<std::io::Error> for AppError {
     fn from(e: std::io::Error) -> AppError {
         AppError::InvalidInput(format!("{}", e))
-    }
-}
-
-impl From<std::num::ParseIntError> for AppError {
-    fn from(e: std::num::ParseIntError) -> AppError {
-        AppError::Cli(format!("{}", e))
     }
 }
 
@@ -47,16 +34,44 @@ impl Display for AppError {
     }
 }
 
-/// Print error in STDERR and exit with error code (1)
-///
-/// # Arguments
-///
-/// * `err` - [AppError](enum@AppError) object
-///
-pub fn handle_error(err: AppError) {
-    eprintln!("{}", err);
-    process::exit(1);
-}
-
 /// Result is a type that represents either success ([Ok]) or failure ([AppError]).
 pub type Result<T> = std::result::Result<T, AppError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use reqwest::blocking::Client as BlockingClient;
+
+    #[test]
+    fn test_app_error_from_reqwest() {
+        BlockingClient::builder()
+            .build()
+            .unwrap()
+            .get("http://bad-url")
+            .send()
+            .map_or_else(|e| assert!(matches!(AppError::from(e), AppError::Api(_))), |_| assert!(false));
+    }
+
+    #[test]
+    fn test_app_error_from_stdio_error() {
+        assert!(matches!(AppError::from(std::io::Error::new(std::io::ErrorKind::Other, "Error")), AppError::InvalidInput(_)));
+    }
+
+    #[test]
+    fn test_invalid_input_error_display() {
+        assert_eq!(
+            format!("{}", AppError::InvalidInput("An error".to_owned())),
+            format!("{} An error", Red.bold().paint("[InvalidInputError]"))
+        );
+    }
+
+    #[test]
+    fn test_api_error_display() {
+        assert_eq!(format!("{}", AppError::Api("An error".to_owned())), format!("{} An error", Red.bold().paint("[ApiError]")));
+    }
+
+    #[test]
+    fn test_cli_error_display() {
+        assert_eq!(format!("{}", AppError::Cli("An error".to_owned())), format!("{} An error", Red.bold().paint("[CliError]")));
+    }
+}

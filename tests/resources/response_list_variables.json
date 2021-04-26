@@ -1,0 +1,66 @@
+[
+    {
+        "variable_type": "file",
+        "key": "TEST_VARIABLE_1",
+        "value": "{\"test_variable\":\"one\"}",
+        "protected": false,
+        "masked": false,
+        "environment_scope": "dev"
+    },
+    {
+        "key": "TEST_VARIABLE_2",
+        "variable_type": "env_var",
+        "value": "TEST_2",
+        "protected": false,
+        "masked": false,
+        "environment_scope": "dev"
+    },
+    {
+        "key": "TEST_VARIABLE_3",
+        "variable_type": "env_var",
+        "value": "TEST_3",
+        "protected": false,
+        "masked": false,
+        "environment_scope": "*"
+    },
+    {
+        "variable_type": "file",
+        "key": "TEST_VARIABLE_4",
+        "value": "{\"test_variable\":\"four\"}",
+        "protected": false,
+        "masked": false,
+        "environment_scope": "*"
+    },
+    {
+        "key": "TEST_VARIABLE_5",
+        "variable_type": "env_var",
+        "value": "TEST_5",
+        "protected": false,
+        "masked": false,
+        "environment_scope": "qa"
+    },
+    {
+        "key": "TEST_VARIABLE_6",
+        "variable_type": "env_var",
+        "value": "TEST_6",
+        "protected": false,
+        "masked": false,
+        "environment_scope": "*"
+    },
+    {
+        "variable_type": "file",
+        "key": "TEST_VARIABLE_7",
+        "value": "{\"test_variable\":\"seven\"}",
+        "protected": false,
+        "masked": false,
+        "environment_scope": "prod"
+    },
+    {
+        "key": "TEST_VARIABLE_8",
+        "variable_type": "env_var",
+        "value": "TEST_8",
+        "protected": false,
+        "masked": false,
+        "environment_scope": "prod"
+    }
+]

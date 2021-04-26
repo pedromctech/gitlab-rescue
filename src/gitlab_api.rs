@@ -1,10 +1,9 @@
-extern crate proc_macro;
 use crate::app_error::{AppError::Cli, Result};
 use reqwest::blocking::{Client as BlockingClient, Response as BlockingResponse};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// GitLab project infomation
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct GitLabProject {
     /// GitLab project name
     pub name: String,
@@ -13,7 +12,7 @@ pub struct GitLabProject {
 }
 
 /// GitLab variable type
-#[derive(Clone, Copy, Debug, Deserialize)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 pub enum GitLabVariableType {
     #[serde(rename = "env_var")]
     /// Environment variable type
@@ -24,7 +23,7 @@ pub enum GitLabVariableType {
 }
 
 /// GitLab variable information
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct GitLabVariable {
     /// The type of a variable. Available types are: env_var and file
     pub variable_type: GitLabVariableType,
@@ -52,20 +51,6 @@ impl GitLabVariable {
     }
 }
 
-#[derive(Debug, Deserialize)]
-pub struct Pagination {
-    /// The index of the next page.
-    x_next_page: usize,
-    /// The index of the current page (starting at 1).
-    x_page: usize,
-    /// The number of items per page.
-    pub x_per_page: usize,
-    /// The total number of items.
-    pub x_total: usize,
-    /// The total number of pages.
-    x_total_pages: usize,
-}
-
 pub trait GitLabApi {
     /// Returns a new [GitLabApi](trait@GitLabApi) object
     fn new(gitlab_api_url: String, gitlab_token: String) -> Self;
@@ -74,7 +59,7 @@ pub trait GitLabApi {
     /// Get a variable value from a specific GitLab group
     fn get_from_group(&self, group: &str, name: &str) -> Result<GitLabVariable>;
     /// List variables from a specific GitLab project
-    fn list_from_project(&self, project: &str, page: usize, per_page: usize) -> Result<(Vec<GitLabVariable>, Pagination)>;
+    fn list_from_project(&self, project: &str, page: usize, per_page: usize) -> Result<(Vec<GitLabVariable>, usize)>;
 }
 
 /// Implementation of [GitLabApi](trait@GitLabApi) v4
@@ -105,7 +90,7 @@ impl<'a> GitLabApi for GitLabApiV4 {
         self.get(&format!("groups/{}/variables/{}", group, name))
     }
 
-    fn list_from_project(&self, project: &str, page: usize, per_page: usize) -> Result<(Vec<GitLabVariable>, Pagination)> {
+    fn list_from_project(&self, project: &str, page: usize, per_page: usize) -> Result<(Vec<GitLabVariable>, usize)> {
         self.list(&format!("projects/{}/variables?page={}&per_page={}", project, page, per_page))
     }
 }
@@ -134,21 +119,15 @@ impl GitLabApiV4 {
     ///
     /// * `endpoint` - GitLab API endpoint to consume
     ///
-    fn list(&self, endpoint: &str) -> Result<(Vec<GitLabVariable>, Pagination)> {
+    fn list(&self, endpoint: &str) -> Result<(Vec<GitLabVariable>, usize)> {
         let res = BlockingClient::builder()
             .build()?
             .get(format!("{}/{}", self.url, endpoint))
             .header("PRIVATE-TOKEN", &self.token)
             .send()?
             .error_for_status()?;
-        let pag = Pagination {
-            x_next_page: get_pagination_header(&res, "x-next-page")?,
-            x_page: get_pagination_header(&res, "x-page")?,
-            x_per_page: get_pagination_header(&res, "x-per-page")?,
-            x_total: get_pagination_header(&res, "x-total")?,
-            x_total_pages: get_pagination_header(&res, "x-total-pages")?,
-        };
-        Ok((res.json::<Vec<GitLabVariable>>()?.iter().map(|v| v.clone_from_response()).collect(), pag))
+        let total = get_pagination_header(&res, "x-total")?;
+        Ok((res.json::<Vec<GitLabVariable>>()?.iter().map(|v| v.clone_from_response()).collect(), total))
     }
 }
 
@@ -160,9 +139,39 @@ impl GitLabApiV4 {
 /// * `header` - Header to extract
 ///
 fn get_pagination_header(res: &BlockingResponse, header: &str) -> Result<usize> {
-    match res.headers().get(header) {
-        Some(h) if h.to_str()?.is_empty() => Ok(0),
-        Some(h) if h.to_str()?.parse::<usize>().is_ok() => Ok(h.to_str()?.parse::<usize>().unwrap()),
+    match res.headers().get(header).and_then(|h| h.to_str().ok()) {
+        Some(h) if h.is_empty() => Ok(0),
+        Some(h) if h.parse::<usize>().is_ok() => Ok(h.parse::<usize>().unwrap()),
         _ => Err(Cli(format!("Header {} not valid in GitLab response", header))),
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+    use crate::gen::tests::{gen_alpha_char, gen_bool, gen_char};
+    use lazy_static::lazy_static;
+
+    lazy_static! {
+        pub static ref GEN_GITLAB_PROJECT: GitLabProject = GitLabProject {
+            name: gen_alpha_char(20),
+            variables: vec![],
+        };
+    }
+
+    pub fn gen_variable(var_type: Option<GitLabVariableType>) -> GitLabVariable {
+        GitLabVariable {
+            key: gen_alpha_char(5).to_uppercase(),
+            value: gen_alpha_char(5),
+            environment_scope: gen_char(b"ABC*"),
+            variable_type: var_type.map_or_else(|| if gen_bool() { GitLabVariableType::EnvVar } else { GitLabVariableType::File }, |t| t),
+        }
+    }
+
+    pub fn gen_variable_list(size: usize) -> Vec<GitLabVariable> {
+        (0..size).into_iter().fold(vec![], |mut acc: Vec<GitLabVariable>, _| {
+            acc.push(gen_variable(None));
+            acc
+        })
     }
 }

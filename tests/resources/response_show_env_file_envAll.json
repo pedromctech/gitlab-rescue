@@ -1,0 +1,8 @@
+{
+    "variable_type": "file",
+    "key": "TEST_VARIABLE_1",
+    "value": "{\"test_variable\":\"one\"}",
+    "protected": false,
+    "masked": false,
+    "environment_scope": "A"
+}

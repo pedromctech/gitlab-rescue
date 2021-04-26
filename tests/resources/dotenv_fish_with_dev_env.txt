@@ -1,0 +1,5 @@
+set -gx TEST_VARIABLE_1 ".env.dev.fish/TEST_VARIABLE_1.var"
+set -gx TEST_VARIABLE_2 "TEST_2"
+set -gx TEST_VARIABLE_3 "TEST_3"
+set -gx TEST_VARIABLE_4 ".env.dev.fish/TEST_VARIABLE_4.var"
+set -gx TEST_VARIABLE_6 "TEST_6"
