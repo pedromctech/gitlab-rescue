@@ -1,0 +1,4 @@
+set -gx TEST_VARIABLE_3 "TEST_3"
+set -gx TEST_VARIABLE_4 ".env.qa.fish/TEST_VARIABLE_4.var"
+set -gx TEST_VARIABLE_5 "TEST_5"
+set -gx TEST_VARIABLE_6 "TEST_6"

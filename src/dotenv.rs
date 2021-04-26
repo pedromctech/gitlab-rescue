@@ -1,7 +1,7 @@
-use crate::api_client::DEFAULT_ENVIRONMENT;
+use crate::api_client::{api_client, DEFAULT_ENVIRONMENT};
 use crate::app_error::{AppError, Result};
 use crate::dotenv::AppError::{Cli, InvalidInput};
-use crate::gitlab_api::{GitLabProject, GitLabVariable, GitLabVariableType};
+use crate::gitlab_api::{GitLabApi, GitLabProject, GitLabVariable, GitLabVariableType};
 use crate::shell_types::ShellType;
 use crate::IO;
 use crate::{app_info, app_warning, extract_token, extract_url, Performable};
@@ -60,10 +60,12 @@ impl Performable for DotEnvCommand {
             res.and_then(|(cmd, variables)| {
                 app_info!("Creating dotenv command list...");
                 match (generate_commands(cmd.shell, &variables, &cmd.folder), &cmd.output_file) {
-                    (list, Some(f)) => File::create(&f).and_then(|mut f| f.write_all(&list.join("\n").as_bytes().to_vec())).or_else(|e| {
-                        app_warning!("Output file could not be created. Error: {}\nPrinting dotenv in STDOUT...", e);
-                        Ok(list.into_iter().for_each(|c| print!("{}", c)))
-                    }),
+                    (list, Some(f)) => File::create(&f)
+                        .and_then(|mut f| f.write_all(&format!("{}{}", &list.join("\n"), "\n").as_bytes().to_vec()))
+                        .or_else(|e| {
+                            app_warning!("Output file could not be created. Error: {}. Printing dotenv in STDOUT...", e);
+                            Ok(list.into_iter().for_each(|c| println!("{}", c)))
+                        }),
                     (list, None) => Ok(list.into_iter().for_each(|c| println!("{}", c))),
                 }
             })
@@ -119,7 +121,7 @@ impl RequestConfig {
     }
 }
 
-/// Get list of variables for dotenv commands
+/// Get list of variables to export in dotenv commands
 fn get_list_of_variables(cmd: &DotEnvCommand) -> Result<Vec<GitLabVariable>> {
     Ok(list_from_api(RequestConfig::from(&cmd, 1))
         .and_then(|(list, total)| match list.len() == total {
@@ -138,17 +140,8 @@ fn get_list_of_variables(cmd: &DotEnvCommand) -> Result<Vec<GitLabVariable>> {
 /// * `request` - Request parameters
 ///
 fn list_from_api(request: RequestConfig) -> Result<(Vec<GitLabVariable>, usize)> {
-    use crate::api_client::api_client;
-    use crate::gitlab_api::GitLabApi;
     api_client(&request.url, &request.token).list_from_project(&request.gitlab_project, request.page, request.per_page)
 }
-
-// #[cfg(test)]
-// fn list_from_api(request: RequestConfig) -> Result<(Vec<GitLabVariable>, usize)> {
-//     use crate::dotenv::tests::GEN_TOTAL;
-//     use crate::gitlab_api::tests::gen_variable_list;
-//     Ok((gen_variable_list(request.per_page), *GEN_TOTAL))
-// }
 
 /// Returns a list with remaining variables that could not be obtained in the first request
 ///
@@ -255,15 +248,15 @@ mod tests {
     use lazy_static::lazy_static;
 
     lazy_static! {
-        pub static ref GEN_TOTAL: usize = gen_usize_from_range(10, 301);
-        pub static ref GEN_PER_PAGE: usize = gen_usize_from_range(10, 101);
-        pub static ref GEN_URL: String = gen_alpha_char(5);
-        pub static ref GEN_TOKEN: String = gen_alpha_char(5);
-        pub static ref GEN_PAGE: usize = gen_usize_from_range(1, 5);
-        pub static ref GEN_ENVIRONMENT: String = "A".to_owned();
-        pub static ref GEN_OUTPUT_FILE: String = gen_alpha_char(5);
-        pub static ref GEN_FOLDER: String = gen_alpha_char(5);
-        pub static ref GEN_GROUP_VARS: bool = gen_bool();
+        static ref GEN_TOTAL: usize = gen_usize_from_range(*GEN_PER_PAGE, 301);
+        static ref GEN_PER_PAGE: usize = gen_usize_from_range(10, 101);
+        static ref GEN_URL: String = gen_alpha_char(5);
+        static ref GEN_TOKEN: String = gen_alpha_char(5);
+        static ref GEN_PAGE: usize = gen_usize_from_range(1, 5);
+        static ref GEN_ENVIRONMENT: String = "A".to_owned();
+        static ref GEN_OUTPUT_FILE: String = gen_alpha_char(5);
+        static ref GEN_FOLDER: String = gen_alpha_char(5);
+        static ref GEN_GROUP_VARS: bool = gen_bool();
     }
 
     fn gen_dotenv_command(url: Option<String>) -> DotEnvCommand {
@@ -303,22 +296,14 @@ mod tests {
                 "gitlab-rescue",
                 "dotenv",
                 &GEN_GITLAB_PROJECT.name,
-                "-e",
-                &GEN_ENVIRONMENT,
-                "-o",
-                &GEN_OUTPUT_FILE,
-                "--folder",
-                &GEN_FOLDER,
-                "--shell",
-                &GEN_SHELL_TYPE.to_string(),
-                "--per-page",
-                &GEN_PER_PAGE.to_string(),
-                "--parallel",
-                &num_cpus::get().to_string(),
-                "-u",
-                &GEN_URL,
-                "-t",
-                &GEN_TOKEN,
+                &format!("-e={}", *GEN_ENVIRONMENT),
+                &format!("-o={}", *GEN_OUTPUT_FILE),
+                &format!("--folder={}", *GEN_FOLDER),
+                &format!("--shell={}", *GEN_SHELL_TYPE),
+                &format!("--per-page={}", *GEN_PER_PAGE),
+                &format!("--parallel={}", num_cpus::get()),
+                &format!("-u={}", *GEN_URL),
+                &format!("-t={}", *GEN_TOKEN),
             ])
             .subcommand()
             .1
@@ -340,7 +325,9 @@ mod tests {
         let server = MockServer::start();
         let mock = server.mock(httpmock_list_variables());
         assert!(get_list_of_variables(&gen_dotenv_command(Some(server.base_url())))
-            .map_or_else(|_| false, |list| list.into_iter().fold(true, |acc, var| acc && var.environment_scope == *GEN_ENVIRONMENT),));
+            .map(|list| list.into_iter().fold(true, |acc, v| acc
+                && (v.environment_scope == *GEN_ENVIRONMENT || v.environment_scope == DEFAULT_ENVIRONMENT)))
+            .unwrap());
         mock.assert_hits(if *GEN_PER_PAGE >= *GEN_TOTAL { 1 } else { num_requests(*GEN_TOTAL, *GEN_PER_PAGE) + 1 });
     }
 

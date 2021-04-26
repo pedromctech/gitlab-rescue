@@ -1,0 +1,4 @@
+export TEST_VARIABLE_3="TEST_3"
+export TEST_VARIABLE_4=".env.qa.posix/TEST_VARIABLE_4.var"
+export TEST_VARIABLE_5="TEST_5"
+export TEST_VARIABLE_6="TEST_6"

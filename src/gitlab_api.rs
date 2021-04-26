@@ -23,7 +23,7 @@ pub enum GitLabVariableType {
 }
 
 /// GitLab variable information
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct GitLabVariable {
     /// The type of a variable. Available types are: env_var and file
     pub variable_type: GitLabVariableType,
@@ -139,9 +139,9 @@ impl GitLabApiV4 {
 /// * `header` - Header to extract
 ///
 fn get_pagination_header(res: &BlockingResponse, header: &str) -> Result<usize> {
-    match res.headers().get(header) {
-        Some(h) if h.to_str()?.is_empty() => Ok(0),
-        Some(h) if h.to_str()?.parse::<usize>().is_ok() => Ok(h.to_str()?.parse::<usize>().unwrap()),
+    match res.headers().get(header).and_then(|h| h.to_str().ok()) {
+        Some(h) if h.is_empty() => Ok(0),
+        Some(h) if h.parse::<usize>().is_ok() => Ok(h.parse::<usize>().unwrap()),
         _ => Err(Cli(format!("Header {} not valid in GitLab response", header))),
     }
 }
@@ -159,22 +159,15 @@ pub mod tests {
         };
     }
 
-    fn gen_variable_type() -> GitLabVariableType {
-        if gen_bool() {
-            GitLabVariableType::EnvVar
-        } else {
-            GitLabVariableType::File
-        }
-    }
-
     pub fn gen_variable(var_type: Option<GitLabVariableType>) -> GitLabVariable {
         GitLabVariable {
             key: gen_alpha_char(5).to_uppercase(),
             value: gen_alpha_char(5),
-            environment_scope: gen_char(b"ABC"),
-            variable_type: var_type.map_or_else(|| gen_variable_type(), |t| t),
+            environment_scope: gen_char(b"ABC*"),
+            variable_type: var_type.map_or_else(|| if gen_bool() { GitLabVariableType::EnvVar } else { GitLabVariableType::File }, |t| t),
         }
     }
+
     pub fn gen_variable_list(size: usize) -> Vec<GitLabVariable> {
         (0..size).into_iter().fold(vec![], |mut acc: Vec<GitLabVariable>, _| {
             acc.push(gen_variable(None));
