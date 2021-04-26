@@ -1,27 +1,24 @@
-name: CICD
-
+name: PR
 env:
-  MIN_SUPPORTED_RUST_VERSION: "1.51.0"
-  CICD_INTERMEDIATES_DIR: "_cicd-intermediates"
-
+  PROJECT_NAME: gitlab-rescue
 on:
   pull_request:
     branches: [main]
-
-jobs:      
+jobs:
+  # Test and lint jobs
   test:
     name: Code coverage
     runs-on: ubuntu-18.04
     steps:
       - name: Git checkout
         uses: actions/checkout@v2
-      - name: Install rust toolchain (v${{ env.MIN_SUPPORTED_RUST_VERSION }})
+      - name: Install rust toolchain
         uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
           override: true
           profile: minimal
-          components: rustfmt, clippy, tarpaulin
+          components: clippy
       - name: Run clippy
         uses: actions-rs/cargo@v1
         with:
@@ -31,11 +28,12 @@ jobs:
         uses: actions-rs/tarpaulin@v0.1
         with:
           version: "0.15.0"
-          args: "--doc --lib --tests --bin gitlab-rescue"
+          args: --doc --lib --tests --bin ${{ env.PROJECT_NAME }}
       - name: Coveralls
         uses: coverallsapp/github-action@master
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+  # Build project
   build:
     name: ${{ matrix.job.os }} (${{ matrix.job.target }})
     runs-on: ${{ matrix.job.os }}
@@ -50,7 +48,7 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v2
-      - name: Needed packages by gitlab-rescue
+      - name: Needed packages by ${{ env.PROJECT_NAME }}
         shell: bash
         run: |
           case ${{ matrix.job.target }} in
