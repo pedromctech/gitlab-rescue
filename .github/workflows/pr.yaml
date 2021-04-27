@@ -37,13 +37,11 @@ jobs:
         run: echo "CARGO_MANIFEST_DIR=$PWD" >> $GITHUB_ENV
       - name: Run cargo-tarpaulin
         uses: actions-rs/tarpaulin@v0.1
+        env:
+          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
         with:
           version: "0.15.0"
-          args: --doc --lib --tests --bin ${{ env.PROJECT_NAME }}
-      - name: Coveralls
-        uses: coverallsapp/github-action@master
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          args: --doc --lib --tests --bin ${{ env.PROJECT_NAME }} --ciserver github-ci --coveralls $COVERALLS_REPO_TOKEN
   # Build project
   build:
     name: ${{ matrix.job.os }} (${{ matrix.job.target }})
@@ -67,7 +65,7 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ matrix.job.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Needed packages by ${{ env.PROJECT_NAME }}
         shell: bash
         run: |
