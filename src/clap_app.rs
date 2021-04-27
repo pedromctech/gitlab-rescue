@@ -121,7 +121,7 @@ mod tests {
             .arg(environment_arg())
             .get_matches_from(vec!["gitlab-rescue", "-e", "production"])
             .value_of("environment")
-            .map(|v| assert_eq!(v, "production"));
+            .map_or_else(|| panic!(), |v| assert_eq!(v, "production"));
     }
 
     #[test]
@@ -130,7 +130,7 @@ mod tests {
             .args(&gitlab_instance_args().to_vec())
             .get_matches_from(vec!["gitlab-rescue", "-t", "a_token"])
             .value_of("token")
-            .map(|v| assert_eq!(v, "a_token"));
+            .map_or_else(|| panic!(), |v| assert_eq!(v, "a_token"));
     }
 
     #[test]
@@ -138,8 +138,8 @@ mod tests {
         ClapApp::new("gitlab-rescue")
             .args(&gitlab_instance_args().to_vec())
             .get_matches_from(vec!["gitlab-rescue", "-u", "https://gitlab.com"])
-            .value_of("token")
-            .map(|v| assert_eq!(v, "https://gitlab.com"));
+            .value_of("url")
+            .map_or_else(|| panic!(), |v| assert_eq!(v, "https://gitlab.com"));
     }
 
     #[test]
@@ -148,7 +148,7 @@ mod tests {
             .args(&project_and_group_args().to_vec())
             .get_matches_from(vec!["gitlab-rescue", "-p", "a-project"])
             .value_of("project")
-            .map(|v| assert_eq!(v, "a-project"));
+            .map_or_else(|| panic!(), |v| assert_eq!(v, "a-project"));
     }
 
     #[test]
@@ -157,30 +157,33 @@ mod tests {
             .args(&project_and_group_args().to_vec())
             .get_matches_from(vec!["gitlab-rescue", "-g", "a-group"])
             .value_of("group")
-            .map(|v| assert_eq!(v, "a-group"));
+            .map_or_else(|| panic!(), |v| assert_eq!(v, "a-group"));
     }
 
     #[test]
     fn test_get_project_command() {
         app()
             .get_matches_from(vec!["gitlab-rescue", "get", "MY_VARIABLE", "-p", "project"])
-            .value_of("VARIABLE_NAME")
-            .map(|v| assert_eq!(v, "MY_VARIABLE"));
+            .subcommand_matches("get")
+            .and_then(|subcmd| subcmd.value_of("VARIABLE_NAME"))
+            .map_or_else(|| panic!(), |v| assert_eq!(v, "MY_VARIABLE"));
     }
 
     #[test]
     fn test_get_command() {
         app()
             .get_matches_from(vec!["gitlab-rescue", "get", "MY_VARIABLE", "-g", "group"])
-            .value_of("VARIABLE_NAME")
-            .map(|v| assert_eq!(v, "MY_VARIABLE"));
+            .subcommand_matches("get")
+            .and_then(|subcmd| subcmd.value_of("VARIABLE_NAME"))
+            .map_or_else(|| panic!(), |v| assert_eq!(v, "MY_VARIABLE"));
     }
 
     #[test]
     fn test_dotenv_command() {
         app()
             .get_matches_from(vec!["gitlab-rescue", "dotenv", "a-project"])
-            .value_of("GITLAB_PROJECT")
-            .map(|v| assert_eq!(v, "MY_VARIABLE"));
+            .subcommand_matches("dotenv")
+            .and_then(|subcmd| subcmd.value_of("GITLAB_PROJECT"))
+            .map_or_else(|| panic!(), |v| assert_eq!(v, "a-project"));
     }
 }

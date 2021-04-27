@@ -1,6 +1,7 @@
 name: PR
 env:
   PROJECT_NAME: gitlab-rescue
+  MINIMUM_COVERAGE: 90
 on:
   pull_request:
     branches: [main]
@@ -32,7 +33,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: --all-targets --all-features
+          args: --all-targets --all-features -- -D warnings
       - name: Set cargo manfest dir
         run: echo "CARGO_MANIFEST_DIR=$PWD" >> $GITHUB_ENV
       - name: Run cargo-tarpaulin
@@ -41,7 +42,7 @@ jobs:
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
         with:
           version: "0.15.0"
-          args: --doc --lib --tests --bin ${{ env.PROJECT_NAME }} --ciserver github-ci --coveralls $COVERALLS_REPO_TOKEN
+          args: --doc --lib --tests --bin ${{ env.PROJECT_NAME }} --fail-under ${{ env.MINIMUM_COVERAGE }} --ciserver github-ci --coveralls $COVERALLS_REPO_TOKEN
   # Build project
   build:
     name: ${{ matrix.job.os }} (${{ matrix.job.target }})

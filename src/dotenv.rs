@@ -1,3 +1,5 @@
+#![allow(clippy::unit_arg)]
+
 use crate::api_client::{api_client, DEFAULT_ENVIRONMENT};
 use crate::app_error::{AppError, Result};
 use crate::dotenv::AppError::{Cli, InvalidInput};
@@ -208,7 +210,7 @@ fn num_requests(total: usize, per_request: usize) -> usize {
 /// * `folder` - Folder where files will be created
 /// * `variables` - List of GitLab variables
 ///
-fn get_files_to_create(folder: &String, variables: &Vec<GitLabVariable>) -> Vec<(String, Vec<u8>)> {
+fn get_files_to_create(folder: &str, variables: &[GitLabVariable]) -> Vec<(String, Vec<u8>)> {
     variables
         .iter()
         .filter(|v| matches!(v.variable_type, GitLabVariableType::File))
@@ -224,7 +226,7 @@ fn get_files_to_create(folder: &String, variables: &Vec<GitLabVariable>) -> Vec<
 /// * `variables` - List of GitLab variables
 /// * `folder` - Folder where variables of type "File" are located
 ///
-fn generate_commands(shell: ShellType, variables: &Vec<GitLabVariable>, folder: &String) -> Vec<String> {
+fn generate_commands(shell: ShellType, variables: &[GitLabVariable], folder: &str) -> Vec<String> {
     variables.iter().fold(vec![], |mut acc, v| {
         acc.push(shell.export_command(
             v.key.clone(),
@@ -307,7 +309,7 @@ mod tests {
             ])
             .subcommand()
             .1
-            .map(|args| assert_eq!(DotEnvCommand::from(args), gen_dotenv_command(None)));
+            .map_or_else(|| panic!(), |args| assert_eq!(DotEnvCommand::from(args), gen_dotenv_command(None)));
     }
 
     fn httpmock_list_variables() -> impl FnOnce(When, Then) {
@@ -325,8 +327,7 @@ mod tests {
         let server = MockServer::start();
         let mock = server.mock(httpmock_list_variables());
         assert!(get_list_of_variables(&gen_dotenv_command(Some(server.base_url())))
-            .map(|list| list.into_iter().fold(true, |acc, v| acc
-                && (v.environment_scope == *GEN_ENVIRONMENT || v.environment_scope == DEFAULT_ENVIRONMENT)))
+            .map(|l| l.into_iter().all(|v| v.environment_scope == *GEN_ENVIRONMENT || v.environment_scope == DEFAULT_ENVIRONMENT))
             .unwrap());
         mock.assert_hits(if *GEN_PER_PAGE >= *GEN_TOTAL { 1 } else { num_requests(*GEN_TOTAL, *GEN_PER_PAGE) + 1 });
     }
@@ -337,7 +338,7 @@ mod tests {
         let mock = server.mock(httpmock_list_variables());
         let num_requests = num_requests(*GEN_TOTAL, *GEN_PER_PAGE);
         remaining_from_api(gen_request_config(Some(server.base_url())), num_requests, num_cpus::get())
-            .map_or_else(|_| assert!(false), |list| assert_eq!(list.len(), num_requests * *GEN_PER_PAGE));
+            .map_or_else(|_| panic!(), |list| assert_eq!(list.len(), num_requests * *GEN_PER_PAGE));
         mock.assert_hits(num_requests);
     }
 
@@ -353,7 +354,7 @@ mod tests {
     fn test_get_files_to_create() {
         let variable = gen_variable(Some(GitLabVariableType::File));
         assert_eq!(
-            get_files_to_create(&GEN_FOLDER, &vec![variable.clone(), gen_variable(Some(GitLabVariableType::EnvVar))]),
+            get_files_to_create(&GEN_FOLDER, &[variable.clone(), gen_variable(Some(GitLabVariableType::EnvVar))]),
             vec![(format!("{}/{}.var", *GEN_FOLDER, variable.key), variable.value.as_bytes().to_vec())]
         );
     }
@@ -363,7 +364,7 @@ mod tests {
         let env_variable = gen_variable(Some(GitLabVariableType::EnvVar));
         let file_variable = gen_variable(Some(GitLabVariableType::File));
         assert_eq!(
-            generate_commands(*GEN_SHELL_TYPE, &vec![env_variable.clone(), file_variable.clone()], &GEN_FOLDER),
+            generate_commands(*GEN_SHELL_TYPE, &[env_variable.clone(), file_variable.clone()], &GEN_FOLDER),
             vec![
                 GEN_SHELL_TYPE.export_command(env_variable.key.clone(), env_variable.value),
                 GEN_SHELL_TYPE.export_command(file_variable.key.clone(), format!("{}/{}.var", *GEN_FOLDER, file_variable.key))

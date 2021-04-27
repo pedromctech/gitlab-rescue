@@ -152,7 +152,10 @@ mod tests {
             ])
             .subcommand()
             .1
-            .map(|a| assert_eq!(GetVariableCommand::from(a), gen_get_variable_command("gitlab.com", true, Some(GEN_PROJECT_NAME.to_owned()))));
+            .map_or_else(
+                || panic!(),
+                |a| assert_eq!(GetVariableCommand::from(a), gen_get_variable_command("gitlab.com", true, Some(GEN_PROJECT_NAME.to_owned()))),
+            );
     }
 
     #[test]

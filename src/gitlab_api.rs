@@ -73,7 +73,7 @@ impl<'a> GitLabApi for GitLabApiV4 {
     fn new(url: String, token: String) -> Self {
         GitLabApiV4 {
             url: format!("{}/api/v4", url),
-            token: token,
+            token,
         }
     }
 
