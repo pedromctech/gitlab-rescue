@@ -1,4 +1,4 @@
-name: Release
+name: Main
 env:
   PROJECT_NAME: gitlab-rescue
 on:
