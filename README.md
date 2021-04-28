@@ -1,6 +1,6 @@
 <p align="center">
   <img alt="GitHub tag (latest SemVer)" src="https://img.shields.io/github/v/tag/pedrodotmc/gitlab-rescue?color=orange&label=Latest%20Version">
-  <img alt="GitHub Workflow Status (branch)" src="https://img.shields.io/github/workflow/status/pedrodotmc/gitlab-rescue/main/main">
+  <img alt="GitHub Workflow Status (branch)" src="https://img.shields.io/github/workflow/status/pedrodotmc/gitlab-rescue/Main/main">
   <img src="https://img.shields.io/crates/l/gitlab-rescue" alt="license">
   <a href='https://coveralls.io/github/pedrodotmc/gitlab-rescue?branch=main'><img src='https://coveralls.io/repos/github/pedrodotmc/gitlab-rescue/badge.svg?branch=main' alt='Coverage Status' /></a>
   <img alt="GitHub last commit (branch)" src="https://img.shields.io/github/last-commit/pedrodotmc/gitlab-rescue/main">
