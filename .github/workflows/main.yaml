@@ -46,7 +46,7 @@ jobs:
           - os: ubuntu-20.04
             target: x86_64-unknown-linux-gnu
             name: x86_64-linux-gnu
-          - os: ubuntu-18.04
+          - os: ubuntu-20.04
             target: x86_64-unknown-linux-musl
             name: x86_64-linux-musl
           - os: macos-10.15
@@ -63,7 +63,7 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             target
-          key: ${{ matrix.job.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ matrix.job.name }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
       - name: Needed packages by ${{ env.PROJECT_NAME }}
         shell: bash
         run: |
@@ -106,7 +106,7 @@ jobs:
           cd target/${{ matrix.job.target }}/release
           strip ${{ env.PROJECT_NAME }}
           chmod +x ${{ env.PROJECT_NAME }}
-          BINARY_NAME=${{ env.PROJECT_NAME }}-${{ env.BINARY_VERSION }}.tar.gz
+          BINARY_NAME=${{ env.PROJECT_NAME }}-${{ matrix.job.target }}-${{ env.BINARY_VERSION }}.tar.gz
           tar -c ${{ env.PROJECT_NAME }} | gzip > $BINARY_NAME
           echo "BINARY_NAME=$BINARY_NAME" >> $GITHUB_ENV
       - name: Optimize and package binary (MacOS)
@@ -117,7 +117,7 @@ jobs:
           chmod +x ${{ env.PROJECT_NAME }}
           mkdir dmg
           mv ${{ env.PROJECT_NAME }} dmg/
-          BINARY_NAME=${{ env.PROJECT_NAME }}-${{ env.BINARY_VERSION }}.dmg
+          BINARY_NAME=${{ env.PROJECT_NAME }}-${{ matrix.job.target }}-${{ env.BINARY_VERSION }}.dmg
           hdiutil create -fs HFS+ -srcfolder dmg -volname ${{ env.PROJECT_NAME }} $BINARY_NAME
           echo "BINARY_NAME=$BINARY_NAME" >> $GITHUB_ENV
       - name: Release
