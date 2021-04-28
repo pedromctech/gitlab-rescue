@@ -25,6 +25,8 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v2
+      - name: Fetch all tags
+        run: git fetch --all --tags
       - name: Check if version was bumped
         id: version_check_staging
         uses: thebongy/version-check@v1
