@@ -165,7 +165,7 @@ mod tests {
         app()
             .get_matches_from(vec!["gitlab-rescue", "get", "MY_VARIABLE", "-p", "project"])
             .subcommand_matches("get")
-            .and_then(|subcmd| subcmd.value_of("VARIABLE_NAME"))
+            .and_then(|args| args.value_of("VARIABLE_NAME"))
             .map_or_else(|| panic!(), |v| assert_eq!(v, "MY_VARIABLE"));
     }
 
@@ -174,7 +174,7 @@ mod tests {
         app()
             .get_matches_from(vec!["gitlab-rescue", "get", "MY_VARIABLE", "-g", "group"])
             .subcommand_matches("get")
-            .and_then(|subcmd| subcmd.value_of("VARIABLE_NAME"))
+            .and_then(|args| args.value_of("VARIABLE_NAME"))
             .map_or_else(|| panic!(), |v| assert_eq!(v, "MY_VARIABLE"));
     }
 
@@ -183,7 +183,7 @@ mod tests {
         app()
             .get_matches_from(vec!["gitlab-rescue", "dotenv", "a-project"])
             .subcommand_matches("dotenv")
-            .and_then(|subcmd| subcmd.value_of("GITLAB_PROJECT"))
+            .and_then(|args| args.value_of("GITLAB_PROJECT"))
             .map_or_else(|| panic!(), |v| assert_eq!(v, "a-project"));
     }
 }

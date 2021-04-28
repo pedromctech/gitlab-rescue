@@ -244,9 +244,9 @@ mod tests {
     use super::*;
     use crate::clap_app::app;
     use crate::gen::tests::*;
-    use crate::gitlab_api::tests::{gen_variable, gen_variable_list, GEN_GITLAB_PROJECT};
+    use crate::gitlab_api::tests::{gen_variable, httpmock_list_variables, GEN_GITLAB_PROJECT};
     use crate::shell_types::tests::GEN_SHELL_TYPE;
-    use httpmock::{MockServer, Then, When};
+    use httpmock::MockServer;
     use lazy_static::lazy_static;
 
     lazy_static! {
@@ -307,25 +307,14 @@ mod tests {
                 &format!("-u={}", *GEN_URL),
                 &format!("-t={}", *GEN_TOKEN),
             ])
-            .subcommand()
-            .1
+            .subcommand_matches("dotenv")
             .map_or_else(|| panic!(), |args| assert_eq!(DotEnvCommand::from(args), gen_dotenv_command(None)));
-    }
-
-    fn httpmock_list_variables() -> impl FnOnce(When, Then) {
-        move |when, then| {
-            when.method("GET").path(format!("/api/v4/projects/{}/variables", GEN_GITLAB_PROJECT.name.clone()));
-            then.status(200)
-                .header("Content-Type", "application/json")
-                .header("x-total", &GEN_TOTAL.to_string())
-                .json_body_obj(&gen_variable_list(if *GEN_PER_PAGE < *GEN_TOTAL { *GEN_PER_PAGE } else { *GEN_TOTAL }));
-        }
     }
 
     #[test]
     fn test_get_list_of_variables() {
         let server = MockServer::start();
-        let mock = server.mock(httpmock_list_variables());
+        let mock = server.mock(httpmock_list_variables(*GEN_TOTAL, *GEN_PER_PAGE));
         assert!(get_list_of_variables(&gen_dotenv_command(Some(server.base_url())))
             .map(|l| l.into_iter().all(|v| v.environment_scope == *GEN_ENVIRONMENT || v.environment_scope == DEFAULT_ENVIRONMENT))
             .unwrap());
@@ -335,7 +324,7 @@ mod tests {
     #[test]
     fn test_remaining_from_api() {
         let server = MockServer::start();
-        let mock = server.mock(httpmock_list_variables());
+        let mock = server.mock(httpmock_list_variables(*GEN_TOTAL, *GEN_PER_PAGE));
         let num_requests = num_requests(*GEN_TOTAL, *GEN_PER_PAGE);
         remaining_from_api(gen_request_config(Some(server.base_url())), num_requests, num_cpus::get())
             .map_or_else(|_| panic!(), |list| assert_eq!(list.len(), num_requests * *GEN_PER_PAGE));
@@ -361,8 +350,7 @@ mod tests {
 
     #[test]
     fn test_generate_commands() {
-        let env_variable = gen_variable(Some(GitLabVariableType::EnvVar));
-        let file_variable = gen_variable(Some(GitLabVariableType::File));
+        let (env_variable, file_variable) = (gen_variable(Some(GitLabVariableType::EnvVar)), gen_variable(Some(GitLabVariableType::File)));
         assert_eq!(
             generate_commands(*GEN_SHELL_TYPE, &[env_variable.clone(), file_variable.clone()], &GEN_FOLDER),
             vec![
