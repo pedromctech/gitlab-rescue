@@ -59,7 +59,7 @@ jobs:
       - name: Set binary version
         run: echo "BINARY_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)" >> $GITHUB_ENV
       - name: Optimize and package binary (Linux)
-        if: contains('linux', ${{ matrix.job.name }})
+        if: ${{ contains('linux', ${{ matrix.job.name }}) }}
         run: |
           cd target/${{ matrix.job.target }}/release
           strip ${{ env.PROJECT_NAME }}
@@ -68,7 +68,7 @@ jobs:
           tar -c ${{ env.PROJECT_NAME }} | gzip > $BINARY_NAME
           echo "BINARY_NAME=$BINARY_NAME" >> $GITHUB_ENV
       - name: Optimize and package binary (MacOS)
-        if: contains('macos', ${{ matrix.job.name }})
+        if: ${{ contains('macos', ${{ matrix.job.name }}) }}
         run: |
           cd target/${{ matrix.job.target }}/release
           strip ${{ env.PROJECT_NAME }}
