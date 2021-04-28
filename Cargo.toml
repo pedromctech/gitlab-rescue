@@ -2,13 +2,14 @@
 authors = ["Pedro Miranda <pedrodotmc@gmail.com>"]
 edition = "2018"
 name = "gitlab_rescue"
-version = "0.1.0"
+version = "0.1.1"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
 ansi_term = "0.12"
 clap = {version = "2.33", features = ["yaml"]}
 num_cpus = "1.13"
+openssl = { version = "0.10", features = ["vendored"] }
 reqwest = {version = "0.11", features = ["blocking", "json"]}
 serde = {version = "1.0", features = ["derive"]}
 threadpool = "1.8"

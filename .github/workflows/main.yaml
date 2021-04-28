@@ -8,7 +8,7 @@ on:
 jobs:
   coverage:
     name: Code coverage
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     steps:
       - name: Git checkout
         uses: actions/checkout@v2
@@ -20,7 +20,7 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-coverage-${{ hashFiles('**/Cargo.lock') }}
       - name: Install rust toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -43,7 +43,7 @@ jobs:
       fail-fast: false
       matrix:
         job:
-          - os: ubuntu-18.04
+          - os: ubuntu-20.04
             target: x86_64-unknown-linux-gnu
             name: x86_64-linux-gnu
           - os: ubuntu-18.04
@@ -63,13 +63,13 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             target
-          key: ${{ matrix.job.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ matrix.job.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
       - name: Needed packages by ${{ env.PROJECT_NAME }}
         shell: bash
         run: |
           case ${{ matrix.job.target }} in
             x86_64-apple-darwin) brew install openssl ;;
-            *) sudo apt-get -y update ; sudo apt-get -y install libssl-dev ;;
+            *) sudo apt-get -y update ; sudo apt-get -y install musl-tools libssl-dev ;;
           esac
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1

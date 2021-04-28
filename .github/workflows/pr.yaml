@@ -8,7 +8,7 @@ on:
 jobs:
   prerelease:
     name: Check Version
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     steps:
       - name: Checkout source code
         uses: actions/checkout@v2
@@ -21,7 +21,7 @@ jobs:
           file: Cargo.toml
   lint:
     name: Code linting
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     steps:
       - name: Git checkout
         uses: actions/checkout@v2
@@ -33,7 +33,7 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-clippy-${{ hashFiles('**/Cargo.lock') }}
       - name: Install rust toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -48,7 +48,7 @@ jobs:
           args: --all-targets --all-features -- -D warnings
   test:
     name: Code coverage
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     steps:
       - name: Git checkout
         uses: actions/checkout@v2
@@ -60,7 +60,7 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-tarpaulin-${{ hashFiles('**/Cargo.lock') }}
       - name: Install rust toolchain
         uses: actions-rs/toolchain@v1
         with:
