@@ -29,7 +29,7 @@ jobs:
         id: version_check_staging
         uses: thebongy/version-check@v1
         with:
-          file: cargo.toml
+          file: Cargo.toml
       - name: Needed packages by ${{ env.PROJECT_NAME }}
         shell: bash
         run: |
