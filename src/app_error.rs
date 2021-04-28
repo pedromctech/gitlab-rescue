@@ -49,7 +49,7 @@ mod tests {
             .unwrap()
             .get("http://bad-url")
             .send()
-            .map_or_else(|e| assert!(matches!(AppError::from(e), AppError::Api(_))), |_| assert!(false));
+            .map_or_else(|e| assert!(matches!(AppError::from(e), AppError::Api(_))), |_| panic!());
     }
 
     #[test]

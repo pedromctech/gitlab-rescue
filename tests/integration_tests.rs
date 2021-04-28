@@ -25,7 +25,7 @@ fn test_should_get_a_variable_from_a_project() {
         .args(&["get", "TEST_VARIABLE_1", "-p", "a-project", "-t", "a-token", "-u", &server.base_url()])
         .assert()
         .success()
-        .stdout("TEST_1");
+        .stdout("TEST_1\n");
     mock.assert();
 }
 
@@ -40,7 +40,7 @@ fn test_should_get_a_variable_from_a_group() {
         .args(&["get", "TEST_VARIABLE_1", "-g", "a-group", "-t", "a-token", "-u", &server.base_url()])
         .assert()
         .success()
-        .stdout("{\"test_variable\":\"one\"}");
+        .stdout("{\"test_variable\":\"one\"}\n");
     mock.assert();
 }
 
@@ -56,7 +56,7 @@ fn test_should_generate_dotenv_with_env(env: &str, shell: &str, folder: &str) {
     let mock = server.mock(httpmock_list());
     gitlab_rescue()
         .args(&["dotenv", "a-project", "-t", "a-token", "-u", &server.base_url(), "-e", env])
-        .args(&["-s", &format!("{}", if shell == "posix" { "bash" } else { shell })])
+        .args(&["-s", if shell == "posix" { "bash" } else { shell }])
         .args(&["--folder", folder])
         .assert()
         .success()
@@ -66,7 +66,7 @@ fn test_should_generate_dotenv_with_env(env: &str, shell: &str, folder: &str) {
     gitlab_rescue()
         .args(&["dotenv", "a-project", "-t", "a-token", "-u", &server.base_url(), "-e", env])
         .args(&["-o", &format!("output-{}-{}.txt", env, shell)])
-        .args(&["-s", &format!("{}", if shell == "posix" { "bash" } else { shell })])
+        .args(&["-s", if shell == "posix" { "bash" } else { shell }])
         .args(&["--folder", folder])
         .assert()
         .success();

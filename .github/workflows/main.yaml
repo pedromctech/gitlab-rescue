@@ -1,0 +1,126 @@
+name: Main
+env:
+  PROJECT_NAME: gitlab-rescue
+on:
+  push:
+    branches: [main]
+jobs:
+  coverage:
+    name: Code coverage
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v2
+      - uses: actions/cache@v2.1.4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+          profile: minimal
+      - name: Set cargo manfest dir
+        run: echo "CARGO_MANIFEST_DIR=$PWD" >> $GITHUB_ENV
+      - name: Run cargo-tarpaulin
+        uses: actions-rs/tarpaulin@v0.1
+        env:
+          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
+        with:
+          version: "0.15.0"
+          args: --doc --lib --tests --bin ${{ env.PROJECT_NAME }} --fail-under ${{ env.MINIMUM_COVERAGE }} --ciserver github-ci --coveralls $COVERALLS_REPO_TOKEN
+  release:
+    name: ${{ matrix.job.os }} (${{ matrix.job.target }})
+    runs-on: ${{ matrix.job.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        job:
+          - os: ubuntu-18.04
+            target: x86_64-unknown-linux-gnu
+            name: x86_64-linux-gnu
+          - os: macos-10.15
+            target: x86_64-apple-darwin
+            name: x86_64-apple
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v2
+      - uses: actions/cache@v2.1.4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ matrix.job.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Needed packages by ${{ env.PROJECT_NAME }}
+        shell: bash
+        run: |
+          case ${{ matrix.job.target }} in
+            x86_64-apple-darwin) brew install openssl ;;
+            *) sudo apt-get -y update ; sudo apt-get -y install libssl-dev ;;
+          esac
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          target: ${{ matrix.job.target }}
+          override: true
+          profile: minimal
+      - name: Show version information (Rust, cargo, GCC)
+        shell: bash
+        run: |
+          gcc --version || true
+          rustup -V
+          rustup toolchain list
+          rustup default
+          cargo -V
+          rustc -V
+      - name: Run tests in ${{ matrix.job.target }}
+        uses: actions-rs/cargo@v1
+        with:
+          use-cross: ${{ matrix.job.cross }}
+          command: test
+          args: --target=${{ matrix.job.target }}
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --target=${{ matrix.job.target }}
+      - name: Set binary version
+        run: echo "BINARY_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)" >> $GITHUB_ENV
+      - name: Optimize and package binary (Linux)
+        if: contains(matrix.job.name, 'linux')
+        run: |
+          cd target/${{ matrix.job.target }}/release
+          strip ${{ env.PROJECT_NAME }}
+          chmod +x ${{ env.PROJECT_NAME }}
+          BINARY_NAME=${{ env.PROJECT_NAME }}-${{ env.BINARY_VERSION }}.tar.gz
+          tar -c ${{ env.PROJECT_NAME }} | gzip > $BINARY_NAME
+          echo "BINARY_NAME=$BINARY_NAME" >> $GITHUB_ENV
+      - name: Optimize and package binary (MacOS)
+        if: contains(matrix.job.name, 'macos')
+        run: |
+          cd target/${{ matrix.job.target }}/release
+          strip ${{ env.PROJECT_NAME }}
+          chmod +x ${{ env.PROJECT_NAME }}
+          mkdir dmg
+          mv ${{ env.PROJECT_NAME }} dmg/
+          BINARY_NAME=${{ env.PROJECT_NAME }}-${{ env.BINARY_VERSION }}.dmg
+          hdiutil create -fs HFS+ -srcfolder dmg -volname ${{ env.PROJECT_NAME }} $BINARY_NAME
+          echo "BINARY_NAME=$BINARY_NAME" >> $GITHUB_ENV
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.BINARY_VERSION }}
+          files: |
+            target/${{ matrix.job.target }}/release/${{ env.BINARY_NAME }}

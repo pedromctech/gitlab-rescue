@@ -1,0 +1,76 @@
+name: PR
+env:
+  PROJECT_NAME: gitlab-rescue
+  MINIMUM_COVERAGE: 90
+on:
+  pull_request:
+    branches: [main]
+jobs:
+  prerelease:
+    name: Check Version
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v2
+      - name: Fetch all tags
+        run: git fetch --all --tags
+      - name: Check if version was bumped
+        id: version_check_staging
+        uses: thebongy/version-check@v1
+        with:
+          file: Cargo.toml
+  lint:
+    name: Code linting
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v2
+      - uses: actions/cache@v2.1.4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+          profile: minimal
+          components: clippy
+      - name: Run clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all-targets --all-features -- -D warnings
+  test:
+    name: Code coverage
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v2
+      - uses: actions/cache@v2.1.4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+          profile: minimal
+      - name: Set cargo manfest dir
+        run: echo "CARGO_MANIFEST_DIR=$PWD" >> $GITHUB_ENV
+      - name: Run cargo-tarpaulin
+        uses: actions-rs/tarpaulin@v0.1
+        with:
+          version: "0.15.0"
+          args: --doc --lib --tests --bin ${{ env.PROJECT_NAME }} --fail-under ${{ env.MINIMUM_COVERAGE }}

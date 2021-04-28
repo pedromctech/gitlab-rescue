@@ -73,7 +73,7 @@ impl<'a> GitLabApi for GitLabApiV4 {
     fn new(url: String, token: String) -> Self {
         GitLabApiV4 {
             url: format!("{}/api/v4", url),
-            token: token,
+            token,
         }
     }
 
@@ -149,12 +149,27 @@ fn get_pagination_header(res: &BlockingResponse, header: &str) -> Result<usize> 
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::gen::tests::{gen_alpha_char, gen_bool, gen_char};
+    use crate::api_client::DEFAULT_ENVIRONMENT;
+    use crate::gen::tests::{gen_alpha_char, gen_bool, gen_char, gen_usize_from_range};
+    use httpmock::{MockServer, Then, When};
     use lazy_static::lazy_static;
 
     lazy_static! {
+        pub static ref GEN_NAME: String = gen_alpha_char(5);
+        pub static ref GEN_PROJECT_NAME: String = gen_alpha_char(5);
+        pub static ref GEN_GROUP_NAME: String = gen_alpha_char(5);
+        pub static ref GEN_TOKEN: String = gen_alpha_char(5);
+        pub static ref GEN_ENVIRONMENT: String = "A".to_owned();
+        pub static ref GEN_GITLAB_VARIABLE: GitLabVariable = GitLabVariable {
+            environment_scope: GEN_ENVIRONMENT.clone(),
+            ..gen_variable(None)
+        };
+        pub static ref GEN_GITLAB_VARIABLE_ALL: GitLabVariable = GitLabVariable {
+            environment_scope: DEFAULT_ENVIRONMENT.to_string(),
+            ..gen_variable(None)
+        };
         pub static ref GEN_GITLAB_PROJECT: GitLabProject = GitLabProject {
-            name: gen_alpha_char(20),
+            name: GEN_PROJECT_NAME.to_string(),
             variables: vec![],
         };
     }
@@ -173,5 +188,65 @@ pub mod tests {
             acc.push(gen_variable(None));
             acc
         })
+    }
+
+    pub fn httpmock_group_variable() -> impl FnOnce(When, Then) {
+        move |when, then| {
+            when.method("GET").path(format!("/api/v4/groups/{}/variables/{}", GEN_GROUP_NAME.clone(), GEN_NAME.clone()));
+            then.status(200).header("Content-Type", "application/json").json_body_obj(&GEN_GITLAB_VARIABLE.clone());
+        }
+    }
+
+    pub fn httpmock_project_variable(env: String) -> impl FnOnce(When, Then) {
+        let (var_all, var_env) = (GEN_GITLAB_VARIABLE_ALL.clone(), GEN_GITLAB_VARIABLE.clone());
+        move |when, then| {
+            when.method("GET")
+                .path(format!("/api/v4/projects/{}/variables/{}", *GEN_PROJECT_NAME, GEN_NAME.clone()))
+                .query_param("filter[environment_scope]", &env);
+            then.status(200)
+                .header("Content-Type", "application/json")
+                .json_body_obj(if env == "*" { &var_all } else { &var_env });
+        }
+    }
+
+    pub fn httpmock_list_variables(total: usize, per_page: usize) -> impl FnOnce(When, Then) {
+        move |when, then| {
+            when.method("GET").path(format!("/api/v4/projects/{}/variables", GEN_GITLAB_PROJECT.name.clone()));
+            then.status(200)
+                .header("Content-Type", "application/json")
+                .header("x-total", &total.to_string())
+                .json_body_obj(&gen_variable_list(if per_page < total { per_page } else { total }));
+        }
+    }
+
+    #[test]
+    fn test_should_get_variable_list_from_project() {
+        let num_variables = gen_usize_from_range(10, 300);
+        let server = MockServer::start();
+        let mock = server.mock(httpmock_list_variables(num_variables, num_variables));
+        GitLabApiV4::new(server.base_url(), gen_alpha_char(5))
+            .list_from_project(&GEN_GITLAB_PROJECT.name, 1, num_variables)
+            .map_or_else(|_| panic!(), |(l, _)| assert_eq!(l.len(), num_variables));
+        mock.assert();
+    }
+
+    #[test]
+    fn test_should_get_a_variable_from_project() {
+        let server = MockServer::start();
+        let mock = server.mock(httpmock_project_variable(GEN_ENVIRONMENT.clone()));
+        GitLabApiV4::new(server.base_url(), gen_alpha_char(5))
+            .get_from_project(&GEN_GITLAB_PROJECT.name, &GEN_NAME, &GEN_ENVIRONMENT)
+            .map_or_else(|_| panic!(), |v| assert_eq!(v, *GEN_GITLAB_VARIABLE));
+        mock.assert();
+    }
+
+    #[test]
+    fn test_should_get_a_variable_from_group() {
+        let server = MockServer::start();
+        let mock = server.mock(httpmock_group_variable());
+        GitLabApiV4::new(server.base_url(), gen_alpha_char(5))
+            .get_from_group(&GEN_GROUP_NAME, &GEN_NAME)
+            .map_or_else(|_| panic!(), |v| assert_eq!(v, *GEN_GITLAB_VARIABLE));
+        mock.assert();
     }
 }

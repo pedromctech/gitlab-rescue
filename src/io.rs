@@ -1,3 +1,5 @@
+#![allow(clippy::upper_case_acronyms)]
+
 pub struct IO<A>(Box<dyn FnOnce() -> A>);
 
 impl<A: 'static> IO<A> {

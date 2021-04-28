@@ -37,7 +37,7 @@ impl Performable for GetVariableCommand {
             }
             .map(|v| {
                 app_success!("Variable {} obtained successfully", self.name);
-                print!("{}", v)
+                println!("{}", v)
             })
         })
     }
@@ -66,12 +66,13 @@ fn get_variable_from_group(cmd: &GetVariableCommand) -> Result<String> {
 
 /// Returns the variable value obtained from GitLab API in specified `[project]`
 fn get_variable_from_project(cmd: &GetVariableCommand) -> Result<String> {
-    let api = api_client(&cmd.url, &cmd.token);
     api_client(&cmd.url, &cmd.token)
         .get_from_project(cmd.gitlab_project.as_ref().unwrap(), &cmd.name, &cmd.environment)
         .map(|g| g.value)
         .or_else(|e| match cmd.environment != DEFAULT_ENVIRONMENT && cmd.from_all_if_missing {
-            true => api.get_from_project(cmd.gitlab_project.as_ref().unwrap(), &cmd.name, DEFAULT_ENVIRONMENT).map(|g| g.value),
+            true => api_client(&cmd.url, &cmd.token)
+                .get_from_project(cmd.gitlab_project.as_ref().unwrap(), &cmd.name, DEFAULT_ENVIRONMENT)
+                .map(|g| g.value),
             _ => Err(e),
         })
 }
@@ -80,29 +81,10 @@ fn get_variable_from_project(cmd: &GetVariableCommand) -> Result<String> {
 mod tests {
     use super::*;
     use crate::clap_app::app;
-    use crate::gen::tests::*;
-    use crate::gitlab_api::tests::gen_variable;
-    use crate::gitlab_api::GitLabVariable;
-    use httpmock::{MockServer, Then, When};
-    use lazy_static::lazy_static;
+    use crate::gitlab_api::tests::*;
+    use httpmock::MockServer;
 
-    lazy_static! {
-        static ref GEN_NAME: String = gen_alpha_char(5);
-        static ref GEN_PROJECT_NAME: String = gen_alpha_char(5);
-        static ref GEN_GROUP_NAME: String = gen_alpha_char(5);
-        static ref GEN_TOKEN: String = gen_alpha_char(5);
-        static ref GEN_ENVIRONMENT: String = "A".to_owned();
-        static ref GEN_GITLAB_VARIABLE: GitLabVariable = GitLabVariable {
-            environment_scope: GEN_ENVIRONMENT.clone(),
-            ..gen_variable(None)
-        };
-        static ref GEN_GITLAB_VARIABLE_ALL: GitLabVariable = GitLabVariable {
-            environment_scope: DEFAULT_ENVIRONMENT.to_string(),
-            ..gen_variable(None)
-        };
-    }
-
-    fn gen_get_variable_command(url: &str, from_all_if_missing: bool, gitlab_project: Option<String>) -> GetVariableCommand {
+    fn gen_getvar_command(url: &str, from_all_if_missing: bool, gitlab_project: Option<String>) -> GetVariableCommand {
         GetVariableCommand {
             name: GEN_NAME.clone(),
             gitlab_group: if gitlab_project.as_ref().clone().is_some() {
@@ -118,27 +100,8 @@ mod tests {
         }
     }
 
-    fn httpmock_get_group_variable() -> impl FnOnce(When, Then) {
-        move |when, then| {
-            when.method("GET").path(format!("/api/v4/groups/{}/variables/{}", GEN_GROUP_NAME.clone(), GEN_NAME.clone()));
-            then.status(200).header("Content-Type", "application/json").json_body_obj(&GEN_GITLAB_VARIABLE.clone());
-        }
-    }
-
-    fn httpmock_get_project_variable(env: String) -> impl FnOnce(When, Then) {
-        let (var_all, var_env) = (GEN_GITLAB_VARIABLE_ALL.clone(), GEN_GITLAB_VARIABLE.clone());
-        move |when, then| {
-            when.method("GET")
-                .path(format!("/api/v4/projects/{}/variables/{}", *GEN_PROJECT_NAME, GEN_NAME.clone()))
-                .query_param("filter[environment_scope]", &env);
-            then.status(200)
-                .header("Content-Type", "application/json")
-                .json_body_obj(if env == "*" { &var_all } else { &var_env });
-        }
-    }
-
     #[test]
-    fn get_variable_cmd_from_cli_args() {
+    fn get_should_create_variable_cmd_from_cli_args() {
         app()
             .get_matches_from(vec![
                 "gitlab-rescue",
@@ -150,34 +113,31 @@ mod tests {
                 "-u=gitlab.com",
                 &format!("-t={}", *GEN_TOKEN),
             ])
-            .subcommand()
-            .1
-            .map(|a| assert_eq!(GetVariableCommand::from(a), gen_get_variable_command("gitlab.com", true, Some(GEN_PROJECT_NAME.to_owned()))));
+            .subcommand_matches("get")
+            .map(|a| assert_eq!(GetVariableCommand::from(a), gen_getvar_command("gitlab.com", true, Some(GEN_PROJECT_NAME.to_owned()))))
+            .unwrap();
     }
 
     #[test]
-    fn test_get_variable_from_group() {
+    fn test_should_get_variable_from_group() {
         let server = MockServer::start();
-        let mock = server.mock(httpmock_get_group_variable());
-        assert!(get_variable_from_group(&gen_get_variable_command(&server.base_url(), false, None)).map_or_else(|_| false, |v| v == GEN_GITLAB_VARIABLE.value));
+        let mock = server.mock(httpmock_group_variable());
+        assert!(get_variable_from_group(&gen_getvar_command(&server.base_url(), false, None)).map_or_else(|_| false, |v| v == GEN_GITLAB_VARIABLE.value));
         mock.assert();
     }
 
     #[test]
-    fn test_get_variable_from_project() {
+    fn test_should_get_variable_from_project() {
         let server = MockServer::start();
-        let mut mock = server.mock(httpmock_get_project_variable(GEN_GITLAB_VARIABLE.environment_scope.clone()));
+        let mut mock = server.mock(httpmock_project_variable(GEN_GITLAB_VARIABLE.environment_scope.clone()));
         assert!(
-            get_variable_from_project(&gen_get_variable_command(&server.base_url(), false, Some(GEN_PROJECT_NAME.to_owned())))
-                .map_or_else(|_| false, |v| v == GEN_GITLAB_VARIABLE.value)
+            get_variable_from_project(&gen_getvar_command(&server.base_url(), false, Some(GEN_PROJECT_NAME.to_owned()))).map_or_else(|_| false, |v| v == GEN_GITLAB_VARIABLE.value)
         );
         mock.assert();
         mock.delete();
-        let mock = server.mock(httpmock_get_project_variable("*".to_owned()));
-        assert!(
-            get_variable_from_project(&gen_get_variable_command(&server.base_url(), true, Some(GEN_PROJECT_NAME.to_owned())))
-                .map_or_else(|_| false, |v| v == GEN_GITLAB_VARIABLE_ALL.value)
-        );
+        let mock = server.mock(httpmock_project_variable("*".to_owned()));
+        assert!(get_variable_from_project(&gen_getvar_command(&server.base_url(), true, Some(GEN_PROJECT_NAME.to_owned())))
+            .map_or_else(|_| false, |v| v == GEN_GITLAB_VARIABLE_ALL.value));
         mock.assert();
     }
 }
