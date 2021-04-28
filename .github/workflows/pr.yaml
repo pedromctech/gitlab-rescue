@@ -9,19 +9,6 @@ jobs:
   prerelease:
     name: Check Version
     runs-on: ubuntu-18.04
-    strategy:
-      fail-fast: false
-      matrix:
-        job:
-          - os: ubuntu-18.04
-            target: x86_64-unknown-linux-gnu
-            name: x86_64-linux-gnu
-          - os: ubuntu-18.04
-            target: x86_64-unknown-linux-musl
-            name: x86_64-linux-musl
-          - os: macos-10.15
-            target: x86_64-apple-darwin
-            name: x86_64-macos
     steps:
       - name: Checkout source code
         uses: actions/checkout@v2

@@ -1,6 +1,22 @@
-# gitlab-rescue (WIP)
+<p align="center">
+  <img alt="GitHub tag (latest SemVer)" src="https://img.shields.io/github/v/tag/pedrodotmc/gitlab-rescue?color=orange&label=Latest%20Version">
+  <img alt="GitHub Workflow Status (branch)" src="https://img.shields.io/github/workflow/status/pedrodotmc/gitlab-rescue/main/main">
+  <img src="https://img.shields.io/crates/l/gitlab-rescue" alt="license">
+  <a href='https://coveralls.io/github/pedrodotmc/gitlab-rescue?branch=main'><img src='https://coveralls.io/repos/github/pedrodotmc/gitlab-rescue/badge.svg?branch=main' alt='Coverage Status' /></a>
+  <img alt="GitHub last commit (branch)" src="https://img.shields.io/github/last-commit/pedrodotmc/gitlab-rescue/main">
+</p>
+
+# gitlab-rescue
 
 CLI tool for getting and importing GitLab CI/CD variables from a project (Read only).
+
+## Installation
+
+Check out the [Release page](https://github.com/pedrodotmc/gitlab-rescue/releases) for prebuilt versions of `gitlab-rescue` for many different architectures. For statically-linked binaries look for `musl` files.
+
+## Usage
+
+### Available commands
 
 ```text
 gitlab-rescue 0.1.0
@@ -19,7 +35,7 @@ SUBCOMMANDS:
     help      Prints this message or the help of the given subcommand(s)
 ```
 
-## gitlab-rescue get
+### gitlab-rescue get
 
 ```text
 gitlab-rescue-get 0.1.0
@@ -60,7 +76,7 @@ ARGS:
             Name of GitLab CI/CD variable.
 ```
 
-## gitlab-rescue dotenv
+### gitlab-rescue dotenv
 
 ```text
 gitlab-rescue-dotenv 0.1.0
