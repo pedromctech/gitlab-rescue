@@ -23,13 +23,13 @@ jobs:
             target: x86_64-apple-darwin
             name: x86_64-macos
     steps:
+      - name: Checkout source code
+        uses: actions/checkout@v2
       - name: Check if version was bumped
         id: version_check_staging
         uses: thebongy/version-check@v1
         with:
           file: cargo.toml
-      - name: Checkout source code
-        uses: actions/checkout@v2
       - name: Needed packages by ${{ env.PROJECT_NAME }}
         shell: bash
         run: |
