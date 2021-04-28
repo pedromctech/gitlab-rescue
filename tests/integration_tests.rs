@@ -25,7 +25,7 @@ fn test_should_get_a_variable_from_a_project() {
         .args(&["get", "TEST_VARIABLE_1", "-p", "a-project", "-t", "a-token", "-u", &server.base_url()])
         .assert()
         .success()
-        .stdout("TEST_1");
+        .stdout("TEST_1\n");
     mock.assert();
 }
 
@@ -40,7 +40,7 @@ fn test_should_get_a_variable_from_a_group() {
         .args(&["get", "TEST_VARIABLE_1", "-g", "a-group", "-t", "a-token", "-u", &server.base_url()])
         .assert()
         .success()
-        .stdout("{\"test_variable\":\"one\"}");
+        .stdout("{\"test_variable\":\"one\"}\n");
     mock.assert();
 }
 

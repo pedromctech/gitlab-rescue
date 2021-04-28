@@ -37,7 +37,7 @@ impl Performable for GetVariableCommand {
             }
             .map(|v| {
                 app_success!("Variable {} obtained successfully", self.name);
-                print!("{}", v)
+                println!("{}", v)
             })
         })
     }
@@ -101,7 +101,7 @@ mod tests {
     }
 
     #[test]
-    fn get_variable_cmd_from_cli_args() {
+    fn get_should_create_variable_cmd_from_cli_args() {
         app()
             .get_matches_from(vec![
                 "gitlab-rescue",
@@ -119,7 +119,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_variable_from_group() {
+    fn test_should_get_variable_from_group() {
         let server = MockServer::start();
         let mock = server.mock(httpmock_group_variable());
         assert!(get_variable_from_group(&gen_getvar_command(&server.base_url(), false, None)).map_or_else(|_| false, |v| v == GEN_GITLAB_VARIABLE.value));
@@ -127,7 +127,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_variable_from_project() {
+    fn test_should_get_variable_from_project() {
         let server = MockServer::start();
         let mut mock = server.mock(httpmock_project_variable(GEN_GITLAB_VARIABLE.environment_scope.clone()));
         assert!(
